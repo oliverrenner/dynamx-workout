@@ -21,6 +21,16 @@ const MOVEMENTS: { id: Movement; label: string }[] = [
   { id: 'cardio', label: 'Cardio' },
 ];
 
+function formatDuration(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const remainder = safe % 60;
+  return hours > 0
+    ? [hours, minutes, remainder].map((value) => String(value).padStart(2, '0')).join(':')
+    : [minutes, remainder].map((value) => String(value).padStart(2, '0')).join(':');
+}
+
 function BrandMark() {
   return <span className="brand-mark" aria-hidden="true">D<span>×</span></span>;
 }
@@ -96,28 +106,63 @@ interface WorkoutSheetProps {
   workout: Workout;
   onAgain: () => void;
   onEdit: (edit: WorkoutEdit) => Promise<void>;
+  onStart: () => Promise<void>;
+  onFinish: () => Promise<void>;
   editStatus: 'idle' | 'saving' | 'saved';
   editError: string;
+  lifecycleBusy: boolean;
+  lifecycleError: string;
 }
 
-function WorkoutSheet({ workout, onAgain, onEdit, editStatus, editError }: WorkoutSheetProps) {
+function WorkoutSheet({ workout, onAgain, onEdit, onStart, onFinish, editStatus, editError, lifecycleBusy, lifecycleError }: WorkoutSheetProps) {
   const exercises = availableExercises(workout.equipment);
+  const running = Boolean(workout.startedAt && !workout.finishedAt);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    setNow(Date.now());
+    if (!running) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [running, workout.startedAt]);
+
+  const elapsed = workout.finishedAt
+    ? workout.durationSeconds || 0
+    : workout.startedAt
+      ? Math.max(0, Math.floor((now - Date.parse(workout.startedAt)) / 1000))
+      : 0;
+  const stateLabel = workout.finishedAt
+    ? `Finished · ${formatDuration(elapsed)}`
+    : running
+      ? `In progress · ${formatDuration(elapsed)}`
+      : 'Ready to start';
+  const editMessage = workout.finishedAt
+    ? 'Finished workouts are locked'
+    : editError || (editStatus === 'saving' ? 'Saving change…' : editStatus === 'saved' ? 'Saved' : 'Click any cell to edit');
+
   return (
     <section className="workout-sheet" aria-live="polite">
       <div className="sheet-heading">
         <div>
           <p className="eyebrow">Today’s workout</p>
           <h2>{workout.format.replace('x', ' × ')}</h2>
-          <p className={`edit-hint ${editStatus}`}>{editError || (editStatus === 'saving' ? 'Saving change…' : editStatus === 'saved' ? 'Saved' : 'Click any cell to edit')}</p>
+          <p className={`workout-state ${running ? 'running' : workout.finishedAt ? 'finished' : ''}`}><span />{stateLabel}</p>
+          <p className={`edit-hint ${editStatus}`}>{editMessage}</p>
         </div>
-        <div className="sheet-actions"><button className="quiet-button" onClick={() => window.print()}>Print</button><button className="quiet-button" onClick={onAgain}>Regenerate</button></div>
+        <div className="sheet-actions">
+          <button className="quiet-button" onClick={() => window.print()}>Print</button>
+          {!running && <button className="quiet-button" onClick={onAgain}>Regenerate</button>}
+          {!workout.startedAt && <button className="workout-button" disabled={lifecycleBusy} onClick={() => void onStart()}>{lifecycleBusy ? 'Starting…' : 'Start workout'}</button>}
+          {running && <button className="workout-button finish" disabled={lifecycleBusy} onClick={() => void onFinish()}>{lifecycleBusy ? 'Finishing…' : 'Finish workout'}</button>}
+        </div>
       </div>
+      {lifecycleError && <p className="lifecycle-error">{lifecycleError}</p>}
       <div className="table-wrap">
         <table className={`editable-table ${workout.people.length > 2 ? 'many-people' : ''}`}>
           <thead><tr><th>Exercise</th>{workout.people.map((person) => <th key={person.id}>{person.name}</th>)}</tr></thead>
           <tbody>
             {workout.blocks.map((block) => (
-              <BlockRows key={block.number} block={block} people={workout.people} exercises={exercises} disabled={editStatus === 'saving'} onEdit={onEdit} />
+              <BlockRows key={block.number} block={block} people={workout.people} exercises={exercises} disabled={editStatus === 'saving' || Boolean(workout.finishedAt)} locked={Boolean(workout.finishedAt)} onEdit={onEdit} />
             ))}
           </tbody>
         </table>
@@ -132,17 +177,18 @@ interface BlockRowsProps {
   people: Workout['people'];
   exercises: Exercise[];
   disabled: boolean;
+  locked: boolean;
   onEdit: (edit: WorkoutEdit) => Promise<void>;
 }
 
-function BlockRows({ block, people, exercises, disabled, onEdit }: BlockRowsProps) {
+function BlockRows({ block, people, exercises, disabled, locked, onEdit }: BlockRowsProps) {
   return (
     <>
       <tr className="block-row"><th colSpan={people.length + 1}>Block {block.number}</th></tr>
       {block.rows.map((row, rowIndex) => (
         <tr key={`${block.number}-${rowIndex}`}>
           <th>
-            <span className="cell-select exercise-cell">
+            <span className={`cell-select exercise-cell ${locked ? 'locked' : ''}`}>
               <select
                 aria-label={`Exercise ${rowIndex + 1} in block ${block.number}`}
                 value={row.exerciseId}
@@ -161,7 +207,7 @@ function BlockRows({ block, people, exercises, disabled, onEdit }: BlockRowsProp
             const options = [...new Set([current, ...prescriptionOptions(row.exerciseId)])];
             return (
               <td key={person.id}>
-                <span className="cell-select prescription-cell">
+                <span className={`cell-select prescription-cell ${locked ? 'locked' : ''}`}>
                   <select
                     aria-label={`${person.name} prescription for ${row.exercise} in block ${block.number}`}
                     value={current}
@@ -215,6 +261,8 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [editStatus, setEditStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [editError, setEditError] = useState('');
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const [lifecycleError, setLifecycleError] = useState('');
 
   useEffect(() => {
     api.session().then((payload) => {
@@ -222,7 +270,11 @@ function App() {
       if (payload) {
         setProfiles(payload.profiles);
         setSelected(payload.profiles.slice(0, 2).map((profile) => profile.id));
-        api.workouts().then(setHistory).catch(() => undefined);
+        api.workouts().then((workouts) => {
+          setHistory(workouts.filter((item) => item.finishedAt));
+          const active = workouts.find((item) => item.startedAt && !item.finishedAt);
+          if (active) setWorkout(active);
+        }).catch(() => undefined);
       }
     }).catch((caught) => { setError(caught.message); setSession(null); });
   }, []);
@@ -254,6 +306,7 @@ function App() {
 
   const makeWorkout = async () => {
     if (!selectedPeople.length) { setError('Select at least one person.'); return; }
+    if (workout?.startedAt && !workout.finishedAt) { setError('Finish the active workout before generating another.'); return; }
     setBusy(true);
     setError('');
     try {
@@ -262,7 +315,7 @@ function App() {
       setWorkout(next);
       setEditStatus('idle');
       setEditError('');
-      setHistory((current) => [next, ...current].slice(0, 8));
+      setLifecycleError('');
       requestAnimationFrame(() => document.querySelector('.workout-sheet')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not create the workout.');
@@ -284,6 +337,31 @@ function App() {
       setEditError(caught instanceof Error ? caught.message : 'Could not save the change.');
       setEditStatus('idle');
     }
+  };
+
+  const startCurrentWorkout = async () => {
+    if (!workout || lifecycleBusy) return;
+    setLifecycleBusy(true);
+    setLifecycleError('');
+    try {
+      const next = await api.startWorkout(workout.id);
+      setWorkout({ ...next, actions: workout.actions || [] });
+    } catch (caught) {
+      setLifecycleError(caught instanceof Error ? caught.message : 'Could not start the workout.');
+    } finally { setLifecycleBusy(false); }
+  };
+
+  const finishCurrentWorkout = async () => {
+    if (!workout || lifecycleBusy) return;
+    setLifecycleBusy(true);
+    setLifecycleError('');
+    try {
+      const next = { ...await api.finishWorkout(workout.id), actions: workout.actions || [] };
+      setWorkout(next);
+      setHistory((current) => [next, ...current.filter((item) => item.id !== next.id)].slice(0, 20));
+    } catch (caught) {
+      setLifecycleError(caught instanceof Error ? caught.message : 'Could not finish the workout.');
+    } finally { setLifecycleBusy(false); }
   };
 
   return (
@@ -328,14 +406,14 @@ function App() {
 
           <div className="generate-row">
             <div>{error && <p className="error">{error}</p>}<p>{selectedPeople.map((person) => person.name).join(' + ') || 'Select a person'} · {format.replace('x', ' × ')} · {equipment.length ? equipment.map((id) => EQUIPMENT.find((item) => item.id === id)?.short).join(', ') : 'Bodyweight'}</p></div>
-            <button className="generate-button" onClick={makeWorkout} disabled={busy || !selectedPeople.length}>{busy ? 'Building…' : 'Generate workout'}<span>↗</span></button>
+            <button className="generate-button" onClick={makeWorkout} disabled={busy || !selectedPeople.length || Boolean(workout?.startedAt && !workout.finishedAt)}>{workout?.startedAt && !workout.finishedAt ? 'Workout in progress' : busy ? 'Building…' : 'Generate workout'}<span>↗</span></button>
           </div>
         </section>
 
-        {workout && <WorkoutSheet workout={workout} onAgain={makeWorkout} onEdit={editWorkout} editStatus={editStatus} editError={editError} />}
+        {workout && <WorkoutSheet workout={workout} onAgain={makeWorkout} onEdit={editWorkout} onStart={startCurrentWorkout} onFinish={finishCurrentWorkout} editStatus={editStatus} editError={editError} lifecycleBusy={lifecycleBusy} lifecycleError={lifecycleError} />}
 
         {!workout && history.length > 0 && (
-          <section className="history"><div><p className="eyebrow">Recent</p><h2>Saved workouts</h2></div><div className="history-list">{history.slice(0, 5).map((item) => <button key={item.id} onClick={() => { setWorkout(item); setEditStatus('idle'); setEditError(''); }}><span>{new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short' }).format(new Date(item.createdAt))}</span><strong>{item.people.map((person) => person.name).join(' + ')}</strong><small>{item.format.replace('x', ' × ')}</small></button>)}</div></section>
+          <section className="history"><div><p className="eyebrow">Tracked</p><h2>Finished workouts</h2></div><div className="history-list">{history.slice(0, 5).map((item) => <button key={item.id} onClick={() => { setWorkout(item); setEditStatus('idle'); setEditError(''); setLifecycleError(''); }}><span>{new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short' }).format(new Date(item.finishedAt || item.createdAt))}</span><strong>{item.people.map((person) => person.name).join(' + ')}</strong><small>{item.format.replace('x', ' × ')} · {formatDuration(item.durationSeconds || 0)}</small></button>)}</div></section>
         )}
       </main>
 

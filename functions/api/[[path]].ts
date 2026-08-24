@@ -1,4 +1,5 @@
 import { applyWorkoutEdit } from '../../src/lib/workout-edit';
+import { finishWorkout, startWorkout } from '../../src/lib/workout-lifecycle';
 import type { Workout, WorkoutAction, WorkoutEdit } from '../../src/types';
 
 interface Env {
@@ -10,6 +11,13 @@ interface Env {
 
 type Authed = { id: string; email: string; name: string; picture: string | null };
 type ActionRow = Omit<WorkoutAction, 'personId' | 'personName'> & { personId: string | null; personName: string | null };
+type StoredWorkoutRow = {
+  id: string;
+  workout_json: string;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_seconds: number | null;
+};
 const COOKIE = '__Host-dynamx_session';
 const STATE_COOKIE = '__Host-dynamx_oauth_state';
 
@@ -171,22 +179,67 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (request.method === 'POST' && path === '/api/workouts') {
     const body = await readBody(request);
     if (!['3x3', '4x2'].includes(String(body.format)) || !Array.isArray(body.blocks) || !Array.isArray(body.people)) return json({ error: 'Invalid workout.' }, 400);
-    const payload = JSON.stringify(body);
+    const workout: Workout = {
+      id: String(body.id),
+      format: String(body.format) as Workout['format'],
+      equipment: Array.isArray(body.equipment) ? body.equipment as Workout['equipment'] : [],
+      people: body.people as Workout['people'],
+      blocks: body.blocks as Workout['blocks'],
+      createdAt: String(body.createdAt || new Date().toISOString()),
+    };
+    const payload = JSON.stringify(workout);
     if (payload.length > 50000) return json({ error: 'Workout is too large.' }, 413);
     await env.DB.prepare('INSERT INTO workouts (id, user_id, format, equipment_json, workout_json, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind(String(body.id), user.id, String(body.format), JSON.stringify(body.equipment || []), payload, String(body.createdAt || new Date().toISOString())).run();
+      .bind(workout.id, user.id, workout.format, JSON.stringify(workout.equipment), payload, workout.createdAt).run();
     return json({ ok: true }, 201);
+  }
+
+  const lifecycleMatch = path.match(/^\/api\/workouts\/([^/]+)\/(start|finish)$/);
+  if (lifecycleMatch && request.method === 'PATCH') {
+    const stored = await env.DB.prepare(`
+      SELECT id, workout_json, started_at, finished_at, duration_seconds
+      FROM workouts WHERE id = ? AND user_id = ?
+    `).bind(lifecycleMatch[1], user.id).first<StoredWorkoutRow>();
+    if (!stored) return json({ error: 'Workout not found.' }, 404);
+
+    const parsed = JSON.parse(stored.workout_json) as Workout;
+    const current: Workout = {
+      ...parsed,
+      startedAt: stored.started_at || parsed.startedAt,
+      finishedAt: stored.finished_at || parsed.finishedAt,
+      durationSeconds: stored.duration_seconds ?? parsed.durationSeconds,
+    };
+
+    let next: Workout;
+    try {
+      const now = new Date().toISOString();
+      next = lifecycleMatch[2] === 'start' ? startWorkout(current, now) : finishWorkout(current, now);
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : 'Invalid workout state.' }, 400);
+    }
+
+    const { actions: _actions, ...savedWorkout } = next;
+    await env.DB.prepare(`
+      UPDATE workouts
+      SET workout_json = ?, started_at = ?, finished_at = ?, duration_seconds = ?
+      WHERE id = ? AND user_id = ?
+    `).bind(
+      JSON.stringify(savedWorkout), next.startedAt || null, next.finishedAt || null,
+      next.durationSeconds ?? null, lifecycleMatch[1], user.id,
+    ).run();
+    return json(savedWorkout);
   }
 
   const workoutMatch = path.match(/^\/api\/workouts\/([^/]+)$/);
   if (workoutMatch && request.method === 'PATCH') {
-    const stored = await env.DB.prepare('SELECT workout_json FROM workouts WHERE id = ? AND user_id = ?')
-      .bind(workoutMatch[1], user.id).first<{ workout_json: string }>();
+    const stored = await env.DB.prepare('SELECT workout_json, finished_at FROM workouts WHERE id = ? AND user_id = ?')
+      .bind(workoutMatch[1], user.id).first<{ workout_json: string; finished_at: string | null }>();
     if (!stored) return json({ error: 'Workout not found.' }, 404);
 
     let result: ReturnType<typeof applyWorkoutEdit>;
     try {
-      result = applyWorkoutEdit(JSON.parse(stored.workout_json) as Workout, await readBody(request) as unknown as WorkoutEdit);
+      const current = { ...JSON.parse(stored.workout_json) as Workout, finishedAt: stored.finished_at || undefined };
+      result = applyWorkoutEdit(current, await readBody(request) as unknown as WorkoutEdit);
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : 'Invalid workout edit.' }, 400);
     }
@@ -210,8 +263,12 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
 
   if (request.method === 'GET' && path === '/api/workouts') {
-    const result = await env.DB.prepare("SELECT id, workout_json FROM workouts WHERE user_id = ? AND format IN ('3x3', '4x2') ORDER BY created_at DESC LIMIT 20")
-      .bind(user.id).all<{ id: string; workout_json: string }>();
+    const result = await env.DB.prepare(`
+      SELECT id, workout_json, started_at, finished_at, duration_seconds
+      FROM workouts
+      WHERE user_id = ? AND format IN ('3x3', '4x2') AND started_at IS NOT NULL
+      ORDER BY COALESCE(finished_at, started_at) DESC LIMIT 20
+    `).bind(user.id).all<StoredWorkoutRow>();
     const actionResult = await env.DB.prepare(`
       SELECT id, workout_id AS workoutId, action_type AS type, block_number AS blockNumber,
         row_index AS rowIndex, person_id AS personId, person_name AS personName,
@@ -219,8 +276,8 @@ async function route(request: Request, env: Env): Promise<Response> {
       FROM workout_actions
       WHERE user_id = ? AND workout_id IN (
         SELECT id FROM workouts
-        WHERE user_id = ? AND format IN ('3x3', '4x2')
-        ORDER BY created_at DESC LIMIT 20
+        WHERE user_id = ? AND format IN ('3x3', '4x2') AND started_at IS NOT NULL
+        ORDER BY COALESCE(finished_at, started_at) DESC LIMIT 20
       )
       ORDER BY created_at ASC
     `).bind(user.id, user.id).all<ActionRow>();
@@ -233,10 +290,16 @@ async function route(request: Request, env: Env): Promise<Response> {
       };
       actions.set(action.workoutId, [...(actions.get(action.workoutId) || []), action]);
     }
-    return json(result.results.map((row) => ({
-      ...JSON.parse(row.workout_json) as Workout,
-      actions: actions.get(row.id) || [],
-    })));
+    return json(result.results.map((row) => {
+      const workout = JSON.parse(row.workout_json) as Workout;
+      return {
+        ...workout,
+        startedAt: row.started_at || workout.startedAt,
+        finishedAt: row.finished_at || workout.finishedAt,
+        durationSeconds: row.duration_seconds ?? workout.durationSeconds,
+        actions: actions.get(row.id) || [],
+      };
+    }));
   }
 
   return json({ error: 'Not found.' }, 404);

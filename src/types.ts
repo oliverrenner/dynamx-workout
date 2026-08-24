@@ -51,6 +51,9 @@ export interface Workout {
   people: Pick<Profile, 'id' | 'name' | 'level'>[];
   blocks: WorkoutBlock[];
   createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  durationSeconds?: number;
   actions?: WorkoutAction[];
 }
 

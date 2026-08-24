@@ -1,5 +1,6 @@
 import type { Level, Profile, SessionPayload, Workout, WorkoutAction, WorkoutEdit } from '../types';
 import { applyWorkoutEdit } from './workout-edit';
+import { finishWorkout as applyFinish, startWorkout as applyStart } from './workout-lifecycle';
 
 const LOCAL_USER = { id: 'local-user', email: 'oliver@example.com', name: 'Oliver Renner' };
 const LOCAL_PROFILE_KEY = 'dynamx.local.profiles';
@@ -81,8 +82,30 @@ export const api = {
     }
     return request<{ workout: Workout; action: WorkoutAction }>(`/api/workouts/${id}`, { method: 'PATCH', body: JSON.stringify(edit) });
   },
+  async startWorkout(id: string): Promise<Workout> {
+    if (import.meta.env.DEV) {
+      const workouts = JSON.parse(localStorage.getItem(LOCAL_WORKOUT_KEY) || '[]') as Workout[];
+      const current = workouts.find((workout) => workout.id === id);
+      if (!current) throw new Error('Workout not found.');
+      const next = applyStart(current);
+      localStorage.setItem(LOCAL_WORKOUT_KEY, JSON.stringify(workouts.map((workout) => workout.id === id ? next : workout)));
+      return next;
+    }
+    return request<Workout>(`/api/workouts/${id}/start`, { method: 'PATCH' });
+  },
+  async finishWorkout(id: string): Promise<Workout> {
+    if (import.meta.env.DEV) {
+      const workouts = JSON.parse(localStorage.getItem(LOCAL_WORKOUT_KEY) || '[]') as Workout[];
+      const current = workouts.find((workout) => workout.id === id);
+      if (!current) throw new Error('Workout not found.');
+      const next = applyFinish(current);
+      localStorage.setItem(LOCAL_WORKOUT_KEY, JSON.stringify(workouts.map((workout) => workout.id === id ? next : workout)));
+      return next;
+    }
+    return request<Workout>(`/api/workouts/${id}/finish`, { method: 'PATCH' });
+  },
   async workouts(): Promise<Workout[]> {
-    if (import.meta.env.DEV) return JSON.parse(localStorage.getItem(LOCAL_WORKOUT_KEY) || '[]') as Workout[];
+    if (import.meta.env.DEV) return (JSON.parse(localStorage.getItem(LOCAL_WORKOUT_KEY) || '[]') as Workout[]).filter((workout) => workout.startedAt);
     return request<Workout[]>('/api/workouts');
   },
 };

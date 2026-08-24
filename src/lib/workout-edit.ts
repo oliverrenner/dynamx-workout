@@ -9,6 +9,7 @@ export function prescriptionOptions(exerciseId: string): string[] {
 }
 
 export function applyWorkoutEdit(workout: Workout, edit: WorkoutEdit): { workout: Workout; action: WorkoutAction } {
+  if (workout.finishedAt) throw new Error('Finished workouts cannot be edited.');
   if (!Number.isInteger(edit.blockNumber) || !Number.isInteger(edit.rowIndex) || edit.blockNumber < 1 || edit.rowIndex < 0) {
     throw new Error('Invalid workout position.');
   }

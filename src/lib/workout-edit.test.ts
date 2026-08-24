@@ -50,4 +50,11 @@ describe('workout editing', () => {
       type: 'exercise', blockNumber: 1, rowIndex: 0, exerciseId: 'kb-swing',
     })).toThrow('Exercise is not available');
   });
+
+  it('keeps a finished workout immutable', () => {
+    const workout = { ...generateWorkout(people, '3x3', [], 'finished'), finishedAt: '2026-08-24T10:30:00.000Z' };
+    expect(() => applyWorkoutEdit(workout, {
+      type: 'prescription', blockNumber: 1, rowIndex: 0, personId: 'oliver', value: '999 reps',
+    })).toThrow('Finished workouts cannot be edited');
+  });
 });

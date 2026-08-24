@@ -10,6 +10,7 @@ A deliberately small workout generator for one or more people. Pick the profiles
 - A profile level changes only the tight rep/time prescription in the table.
 - Exercise and prescription cells can be changed only through curated dropdowns; changing an exercise resets its prescriptions for each profile level.
 - Every accepted cell change is saved and appended to the workout's action log.
+- A workout is tracked in history only after Start and Finish; duration is derived from server timestamps.
 - Profiles and generated workouts are stored in Cloudflare D1.
 
 ## Local development

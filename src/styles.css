@@ -84,11 +84,21 @@ main { max-width: 1440px; margin: 0 auto; padding: 0 40px 100px; }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(24px); } }
 .sheet-heading { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 22px; }
 .sheet-heading h2 { margin: 0; font-size: 44px; letter-spacing: -.06em; }
+.workout-state { display: flex; align-items: center; gap: 7px; margin: 9px 0 0; color: var(--muted); font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.workout-state span { width: 7px; height: 7px; border-radius: 50%; background: #a8aaa1; }
+.workout-state.running { color: var(--ink); }
+.workout-state.running span { background: var(--acid); box-shadow: 0 0 0 3px rgba(199,255,69,.28); animation: timer-pulse 1.5s ease infinite; }
+.workout-state.finished span { background: var(--ink); }
+@keyframes timer-pulse { 50% { transform: scale(.72); opacity: .65; } }
 .edit-hint { min-height: 16px; margin: 8px 0 0; color: var(--muted); font-size: 11px; transition: color .18s; }
 .edit-hint.saving { color: var(--ink); }
 .edit-hint.saved { color: #497312; }
 .sheet-actions { display: flex; gap: 8px; }
 .quiet-button { padding: 10px 13px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; cursor: pointer; }
+.workout-button { min-width: 132px; padding: 10px 15px; border: 1px solid var(--acid); border-radius: 4px; background: var(--acid); color: var(--ink); font-size: 11px; font-weight: 800; cursor: pointer; }
+.workout-button.finish { border-color: var(--ink); background: var(--ink); color: var(--acid); }
+.workout-button:disabled { opacity: .5; cursor: wait; }
+.lifecycle-error { margin: -10px 0 18px; color: var(--danger); font-size: 11px; }
 .table-wrap { overflow-x: auto; border-top: 3px solid var(--ink); border-bottom: 3px solid var(--ink); background: var(--paper); }
 table { width: 100%; min-width: 640px; border-collapse: collapse; }
 th, td { padding: 17px 20px; border-bottom: 1px solid var(--line); text-align: left; }
@@ -108,6 +118,8 @@ tbody tr:not(.block-row) { animation: row-in .32s ease both; }
 .cell-select select:hover { background: #eceee6; }
 .cell-select select:focus-visible { background: #e7e9df; box-shadow: inset 0 0 0 2px var(--ink); }
 .cell-select select:disabled { cursor: wait; opacity: .55; }
+.cell-select.locked::after { display: none; }
+.cell-select.locked select:disabled { padding-right: 20px; cursor: default; opacity: .68; }
 .exercise-cell select { font-size: 15px; font-weight: 700; }
 .prescription-cell select { font: 700 15px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
 
@@ -214,7 +226,7 @@ tbody tr:not(.block-row) { animation: row-in .32s ease both; }
 
 @media print {
   body { background: white; }
-  header, .builder, .sheet-actions, .history, .action-log, .edit-hint { display: none !important; }
+  header, .builder, .sheet-actions, .history, .action-log, .edit-hint, .workout-state, .lifecycle-error { display: none !important; }
   main { max-width: none; padding: 0; }
   .workout-sheet { margin: 0; }
   .workout-sheet .eyebrow { display: none; }
