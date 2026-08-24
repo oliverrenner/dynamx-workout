@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "dynamx-workout",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-08-24",
+  "vars": {
+    "APP_URL": "https://workout.dynamx.io",
+    "GOOGLE_CLIENT_ID": "SET_AFTER_GOOGLE_OAUTH_SETUP"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dynamx-workout",
+      "database_id": "01c824c5-33c2-4d50-8861-50a89640564e"
+    }
+  ]
+}
