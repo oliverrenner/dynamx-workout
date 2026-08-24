@@ -10,7 +10,8 @@ describe('exercise instructions', () => {
       for (const language of ['de', 'en'] as const) {
         const instruction = exerciseInstruction(exercise.id, language);
         expect(instruction.length).toBeGreaterThan(0);
-        expect(instruction.length).toBeLessThanOrEqual(64);
+        expect(instruction.length).toBeGreaterThanOrEqual(70);
+        expect(instruction.length).toBeLessThanOrEqual(150);
       }
     }
   });
