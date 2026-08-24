@@ -5,10 +5,12 @@ import { availableExercises, generateWorkout } from './lib/generator';
 import { prescriptionOptions } from './lib/workout-edit';
 import type { EquipmentId, Level, Profile, SessionPayload, Workout, WorkoutAction, WorkoutEdit, WorkoutFormat } from './types';
 
-const FORMATS: { value: WorkoutFormat; label: string; note: string }[] = [
-  { value: '3x3', label: '3 × 3', note: '3 blocks · 3 moves' },
-  { value: '4x2', label: '4 × 2', note: '4 blocks · 2 moves' },
+const FORMATS: { value: WorkoutFormat; label: string }[] = [
+  { value: '3x3', label: '3 × 3' },
+  { value: '4x2', label: '4 × 2' },
 ];
+
+type AppView = 'workout' | 'history' | 'actions';
 
 const MOVEMENTS: { id: Movement; label: string }[] = [
   { id: 'squat', label: 'Squat' },
@@ -38,21 +40,14 @@ function BrandMark() {
 function Login() {
   return (
     <main className="login-shell">
-      <div className="login-wordmark"><BrandMark /><span>Dynamx Workout</span></div>
-      <div className="login-copy">
-        <p className="eyebrow">Workout generator</p>
-        <h1>Everyone gets<br />their line.</h1>
-        <p>Pick the people. Pick what’s around. Get one tight training sheet.</p>
+      <div className="login-panel">
+        <div className="login-wordmark"><BrandMark /><span>Dynamx Workout</span></div>
+        <h1>Workout generator</h1>
+        <p>Generate and track simple training sheets.</p>
         <a className="google-button" href="/api/auth/login">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.01v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.4Z"/><path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.42l-3.24-2.54c-.9.6-2.05.96-3.38.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.62A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.39 13.87A6 6 0 0 1 6.08 12c0-.65.11-1.28.31-1.87V7.51H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.49l3.35-2.62Z"/><path fill="#EA4335" d="M12 6c1.47 0 2.79.51 3.83 1.5l2.87-2.87A9.64 9.64 0 0 0 12 2a10 10 0 0 0-8.96 5.51l3.35 2.62C7.18 7.76 9.39 6 12 6Z"/></svg>
           Continue with Google
         </a>
-      </div>
-      <div className="login-grid" aria-hidden="true">
-        <span>EXERCISE</span><span>OLIVER</span><span>KATRIN</span>
-        <strong>Air squat</strong><strong>15 reps</strong><strong>10 reps</strong>
-        <strong>Push-up</strong><strong>10 reps</strong><strong>6 reps</strong>
-        <strong>Dead bug</strong><strong>10 / side</strong><strong>6 / side</strong>
       </div>
     </main>
   );
@@ -144,7 +139,6 @@ function WorkoutSheet({ workout, onAgain, onEdit, onStart, onFinish, editStatus,
     <section className="workout-sheet" aria-live="polite">
       <div className="sheet-heading">
         <div>
-          <p className="eyebrow">Today’s workout</p>
           <h2>{workout.format.replace('x', ' × ')}</h2>
           <p className={`workout-state ${running ? 'running' : workout.finishedAt ? 'finished' : ''}`}><span />{stateLabel}</p>
           <p className={`edit-hint ${editStatus}`}>{editMessage}</p>
@@ -167,7 +161,6 @@ function WorkoutSheet({ workout, onAgain, onEdit, onStart, onFinish, editStatus,
           </tbody>
         </table>
       </div>
-      <ActionLog actions={workout.actions || []} />
     </section>
   );
 }
@@ -226,30 +219,62 @@ function BlockRows({ block, people, exercises, disabled, locked, onEdit }: Block
   );
 }
 
-function ActionLog({ actions }: { actions: WorkoutAction[] }) {
+interface HistoryViewProps {
+  history: Workout[];
+  onOpen: (workout: Workout) => void;
+}
+
+function HistoryView({ history, onOpen }: HistoryViewProps) {
   return (
-    <section className="action-log" aria-label="Workout action log">
-      <div className="action-log-heading">
-        <div><p className="eyebrow">Changes</p><h3>Action log</h3></div>
-        <span>{actions.length} {actions.length === 1 ? 'change' : 'changes'}</span>
+    <section className="view-section history-view">
+      <div className="view-heading">
+        <h1>History</h1>
+        <span>{history.length}</span>
       </div>
-      {actions.length === 0 ? <p className="empty-log">No edits yet.</p> : (
-        <ol>
-          {[...actions].reverse().map((action) => (
-            <li key={action.id}>
-              <time dateTime={action.createdAt}>{new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' }).format(new Date(action.createdAt))}</time>
-              <strong>Block {action.blockNumber} · {action.personName || 'Exercise'}</strong>
-              <span>{action.from}<i>→</i>{action.to}</span>
-            </li>
-          ))}
-        </ol>
-      )}
+      {history.length === 0 ? <p className="empty-state">No finished workouts.</p> : <div className="history-list">
+        {history.map((item) => (
+          <button key={item.id} onClick={() => onOpen(item)}>
+            <time dateTime={item.finishedAt || item.createdAt}>{new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(item.finishedAt || item.createdAt))}</time>
+            <strong>{item.people.map((person) => person.name).join(' + ')}</strong>
+            <span>{item.format.replace('x', ' × ')} · {formatDuration(item.durationSeconds || 0)}</span>
+          </button>
+        ))}
+      </div>}
+    </section>
+  );
+}
+
+interface ActionEntry {
+  action: WorkoutAction;
+  workout: Workout;
+}
+
+function ActionsView({ workouts }: { workouts: Workout[] }) {
+  const entries = workouts.flatMap((workout) => (workout.actions || []).map((action) => ({ action, workout })))
+    .sort((left, right) => Date.parse(right.action.createdAt) - Date.parse(left.action.createdAt));
+
+  return (
+    <section className="view-section actions-view">
+      <div className="view-heading">
+        <h1>Actions</h1>
+        <span>{entries.length}</span>
+      </div>
+      {entries.length === 0 ? <p className="empty-state">No workout edits.</p> : <ol className="action-list">
+        {entries.map(({ action, workout }: ActionEntry) => (
+          <li key={action.id}>
+            <time dateTime={action.createdAt}>{new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(action.createdAt))}</time>
+            <div><strong>{action.personName || 'Exercise'} · Block {action.blockNumber}</strong><small>{workout.people.map((person) => person.name).join(' + ')}</small></div>
+            <span>{action.from}<i>→</i>{action.to}</span>
+          </li>
+        ))}
+      </ol>}
     </section>
   );
 }
 
 function App() {
   const [session, setSession] = useState<SessionPayload | null | undefined>();
+  const [view, setView] = useState<AppView>('workout');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [equipment, setEquipment] = useState<EquipmentId[]>([]);
@@ -280,6 +305,12 @@ function App() {
   }, []);
 
   const selectedPeople = useMemo(() => profiles.filter((profile) => selected.includes(profile.id)), [profiles, selected]);
+  const visibleWorkouts = useMemo(() => {
+    const unique = new Map(history.map((item) => [item.id, item]));
+    if (workout) unique.set(workout.id, workout);
+    return [...unique.values()];
+  }, [history, workout]);
+  const actionCount = useMemo(() => visibleWorkouts.reduce((total, item) => total + (item.actions?.length || 0), 0), [visibleWorkouts]);
 
   if (session === undefined) return <div className="loading"><BrandMark /></div>;
   if (!session) return <Login />;
@@ -364,19 +395,34 @@ function App() {
     } finally { setLifecycleBusy(false); }
   };
 
+  const openWorkout = (item: Workout) => {
+    setWorkout(item);
+    setEditStatus('idle');
+    setEditError('');
+    setLifecycleError('');
+    setView('workout');
+    requestAnimationFrame(() => document.querySelector('.workout-sheet')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+
   return (
     <div className="app-shell">
       <header>
         <a className="wordmark" href="/" aria-label="Dynamx Workout"><BrandMark /><span>Workout</span></a>
+        <nav className="app-nav" aria-label="Main navigation">
+          <button className={view === 'workout' ? 'active' : ''} aria-current={view === 'workout' ? 'page' : undefined} onClick={() => setView('workout')}>Workout</button>
+          <button className={view === 'history' ? 'active' : ''} aria-current={view === 'history' ? 'page' : undefined} onClick={() => setView('history')}>History <span>{history.length}</span></button>
+          <button className={view === 'actions' ? 'active' : ''} aria-current={view === 'actions' ? 'page' : undefined} onClick={() => setView('actions')}>Actions <span>{actionCount}</span></button>
+        </nav>
         <div className="account"><span>{session.user.name}</span>{session.user.picture ? <img src={session.user.picture} alt="" referrerPolicy="no-referrer" /> : <span className="avatar">{session.user.name.charAt(0)}</span>}<a href="/api/auth/logout">Sign out</a></div>
       </header>
 
       <main>
-        <section className="builder">
-          <div className="builder-intro"><p className="eyebrow">New workout</p><h1>Build today’s sheet.</h1><p>Choose who trains and what you have. Bodyweight is always available.</p></div>
+        {view === 'workout' && <>
+          <section className="builder">
+          <div className="view-heading"><h1>Workout</h1></div>
 
           <div className="setup-row">
-            <div className="setup-label"><span>01</span><div><h2>People</h2><p>{selected.length || 'No'} selected</p></div></div>
+            <div className="setup-label"><h2>People</h2><span>{selected.length || 'None'} selected</span></div>
             <div className="choice-list people-list">
               {profiles.map((profile) => (
                 <div className={`person-choice ${selected.includes(profile.id) ? 'selected' : ''}`} key={profile.id}>
@@ -391,14 +437,14 @@ function App() {
           </div>
 
           <div className="setup-row">
-            <div className="setup-label"><span>02</span><div><h2>Format</h2><p>Blocks × moves</p></div></div>
+            <div className="setup-label"><h2>Format</h2></div>
             <div className="format-list">
-              {FORMATS.map((item) => <button key={item.value} className={format === item.value ? 'selected' : ''} onClick={() => setFormat(item.value)}><strong>{item.label}</strong><small>{item.note}</small></button>)}
+              {FORMATS.map((item) => <button key={item.value} className={format === item.value ? 'selected' : ''} onClick={() => setFormat(item.value)}><strong>{item.label}</strong></button>)}
             </div>
           </div>
 
           <div className="setup-row">
-            <div className="setup-label"><span>03</span><div><h2>Equipment</h2><p>{equipment.length ? `${equipment.length} selected` : 'Bodyweight only'}</p></div></div>
+            <div className="setup-label"><h2>Equipment</h2><span>{equipment.length ? `${equipment.length} selected` : 'Bodyweight'}</span></div>
             <div className="equipment-list">
               {EQUIPMENT.map((item) => <button key={item.id} className={equipment.includes(item.id) ? 'selected' : ''} onClick={() => setEquipment((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])}><span>{item.short}</span>{item.label}<i>✓</i></button>)}
             </div>
@@ -406,15 +452,14 @@ function App() {
 
           <div className="generate-row">
             <div>{error && <p className="error">{error}</p>}<p>{selectedPeople.map((person) => person.name).join(' + ') || 'Select a person'} · {format.replace('x', ' × ')} · {equipment.length ? equipment.map((id) => EQUIPMENT.find((item) => item.id === id)?.short).join(', ') : 'Bodyweight'}</p></div>
-            <button className="generate-button" onClick={makeWorkout} disabled={busy || !selectedPeople.length || Boolean(workout?.startedAt && !workout.finishedAt)}>{workout?.startedAt && !workout.finishedAt ? 'Workout in progress' : busy ? 'Building…' : 'Generate workout'}<span>↗</span></button>
+            <button className="generate-button" onClick={makeWorkout} disabled={busy || !selectedPeople.length || Boolean(workout?.startedAt && !workout.finishedAt)}>{workout?.startedAt && !workout.finishedAt ? 'Workout in progress' : busy ? 'Building…' : 'Generate workout'}</button>
           </div>
         </section>
 
         {workout && <WorkoutSheet workout={workout} onAgain={makeWorkout} onEdit={editWorkout} onStart={startCurrentWorkout} onFinish={finishCurrentWorkout} editStatus={editStatus} editError={editError} lifecycleBusy={lifecycleBusy} lifecycleError={lifecycleError} />}
-
-        {!workout && history.length > 0 && (
-          <section className="history"><div><p className="eyebrow">Tracked</p><h2>Finished workouts</h2></div><div className="history-list">{history.slice(0, 5).map((item) => <button key={item.id} onClick={() => { setWorkout(item); setEditStatus('idle'); setEditError(''); setLifecycleError(''); }}><span>{new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short' }).format(new Date(item.finishedAt || item.createdAt))}</span><strong>{item.people.map((person) => person.name).join(' + ')}</strong><small>{item.format.replace('x', ' × ')} · {formatDuration(item.durationSeconds || 0)}</small></button>)}</div></section>
-        )}
+        </>}
+        {view === 'history' && <HistoryView history={history} onOpen={openWorkout} />}
+        {view === 'actions' && <ActionsView workouts={visibleWorkouts} />}
       </main>
 
       {editor && <ProfileEditor profile={editor === 'new' ? undefined : editor} onClose={() => setEditor(null)} onSave={saveProfile} onDelete={editor === 'new' ? undefined : deleteProfile} />}
