@@ -20,6 +20,7 @@ export interface Copy {
   save: string;
   create: string;
   workouts: string;
+  exercises: string;
   workout: string;
   history: string;
   actions: string;
@@ -60,6 +61,7 @@ export interface Copy {
   finishing: string;
   finishWorkout: string;
   exercise: string;
+  movement: string;
   block: string;
   noFinishedWorkouts: string;
   noWorkoutEdits: string;
@@ -92,6 +94,7 @@ export const COPY: Record<Language, Copy> = {
     save: 'Save',
     create: 'Create',
     workouts: 'Workouts',
+    exercises: 'Exercises',
     workout: 'Workout',
     history: 'History',
     actions: 'Actions',
@@ -132,6 +135,7 @@ export const COPY: Record<Language, Copy> = {
     finishing: 'Finishing…',
     finishWorkout: 'Finish workout',
     exercise: 'Exercise',
+    movement: 'Movement',
     block: 'Block',
     noFinishedWorkouts: 'No finished workouts.',
     noWorkoutEdits: 'No workout edits.',
@@ -162,6 +166,7 @@ export const COPY: Record<Language, Copy> = {
     save: 'Speichern',
     create: 'Erstellen',
     workouts: 'Workouts',
+    exercises: 'Übungen',
     workout: 'Workout',
     history: 'Verlauf',
     actions: 'Änderungen',
@@ -202,6 +207,7 @@ export const COPY: Record<Language, Copy> = {
     finishing: 'Beendet…',
     finishWorkout: 'Workout beenden',
     exercise: 'Übung',
+    movement: 'Bewegung',
     block: 'Block',
     noFinishedWorkouts: 'Keine beendeten Workouts.',
     noWorkoutEdits: 'Keine Änderungen.',

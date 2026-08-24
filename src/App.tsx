@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { EQUIPMENT, type Exercise, type Movement } from './data/exercises';
+import { EQUIPMENT, EXERCISES, type Exercise, type Movement } from './data/exercises';
 import { api } from './lib/api';
 import { availableExercises, generateWorkout } from './lib/generator';
 import { COPY, detectLanguage, localeFor, localizeActionValue, localizeEquipment, localizeExercise, localizeMovement, localizePrescription, storeLanguage, type Language } from './lib/i18n';
@@ -12,7 +12,7 @@ const FORMATS: { value: WorkoutFormat; label: string }[] = [
   { value: '4x2', label: '4 × 2' },
 ];
 
-type AppView = 'create' | 'workouts' | 'actions';
+type AppView = 'create' | 'workouts' | 'exercises' | 'actions';
 
 const MOVEMENTS: { id: Movement; label: string }[] = [
   { id: 'squat', label: 'Squat' },
@@ -321,6 +321,51 @@ function ActionsView({ workouts, language }: { workouts: Workout[]; language: La
   );
 }
 
+function ExerciseCatalogue({ language }: { language: Language }) {
+  const copy = COPY[language];
+  return (
+    <section className="view-section catalogue-view">
+      <div className="view-heading">
+        <h1>{copy.exercises}</h1>
+        <span>{EXERCISES.length}</span>
+      </div>
+      <div className="catalogue-wrap">
+        <table className="catalogue-table">
+          <thead>
+            <tr>
+              <th>{copy.exercise}</th>
+              <th>{copy.movement}</th>
+              <th>{copy.equipment}</th>
+              <th>{copy.levels.beginner}</th>
+              <th>{copy.levels.regular}</th>
+              <th>{copy.levels.advanced}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {EXERCISES.map((exercise) => {
+              const movement = MOVEMENTS.find((item) => item.id === exercise.movement)!;
+              const requiredEquipment = exercise.equipment.map((id) => {
+                const item = EQUIPMENT.find((candidate) => candidate.id === id)!;
+                return localizeEquipment(item.id, item.label, language);
+              });
+              return (
+                <tr key={exercise.id}>
+                  <th>{localizeExercise(exercise.id, exercise.name, language)}</th>
+                  <td><span className="catalogue-label">{copy.movement}</span>{localizeMovement(movement.id, movement.label, language)}</td>
+                  <td><span className="catalogue-label">{copy.equipment}</span>{requiredEquipment.length ? requiredEquipment.join(', ') : copy.bodyweight}</td>
+                  <td><span className="catalogue-label">{copy.levels.beginner}</span>{localizePrescription(exercise.targets.beginner, language)}</td>
+                  <td><span className="catalogue-label">{copy.levels.regular}</span>{localizePrescription(exercise.targets.regular, language)}</td>
+                  <td><span className="catalogue-label">{copy.levels.advanced}</span>{localizePrescription(exercise.targets.advanced, language)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const [language, setLanguage] = useState<Language>(detectLanguage);
   const [session, setSession] = useState<SessionPayload | null | undefined>();
@@ -490,6 +535,7 @@ function App() {
         <nav className="app-nav" aria-label={copy.mainNavigation}>
           <button className={view === 'create' ? 'active' : ''} aria-current={view === 'create' ? 'page' : undefined} onClick={() => setView('create')}>{copy.create}</button>
           <button className={view === 'workouts' ? 'active' : ''} aria-current={view === 'workouts' ? 'page' : undefined} onClick={() => { setSelectedWorkout(null); setView('workouts'); }}>{copy.workouts} <span>{workouts.length}</span></button>
+          <button className={view === 'exercises' ? 'active' : ''} aria-current={view === 'exercises' ? 'page' : undefined} onClick={() => setView('exercises')}>{copy.exercises} <span>{EXERCISES.length}</span></button>
           <button className={view === 'actions' ? 'active' : ''} aria-current={view === 'actions' ? 'page' : undefined} onClick={() => setView('actions')}>{copy.actions} <span>{actionCount}</span></button>
         </nav>
         <div className="header-tools"><LanguageToggle language={language} onChange={(next) => { setLanguage(next); storeLanguage(next); }} /><div className="account"><span>{session.user.name}</span>{session.user.picture ? <img src={session.user.picture} alt="" referrerPolicy="no-referrer" /> : <span className="avatar">{session.user.name.charAt(0)}</span>}<a href="/api/auth/logout">{copy.signOut}</a></div></div>
@@ -565,6 +611,7 @@ function App() {
             activeElsewhere={Boolean(activeWorkout && activeWorkout.id !== selectedWorkout.id)}
           />
         ) : <WorkoutsView workouts={workouts} language={language} onOpen={openWorkout} />)}
+        {view === 'exercises' && <ExerciseCatalogue language={language} />}
         {view === 'actions' && <ActionsView workouts={workouts} language={language} />}
       </main>
 
