@@ -469,7 +469,7 @@ function App() {
       const saved = await api.saveWorkout(preview);
       setWorkouts((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
       setPreview(null);
-      setSelectedWorkout(null);
+      setSelectedWorkout(saved);
       setView('workouts');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (caught) {
