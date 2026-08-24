@@ -106,8 +106,8 @@ function BlockRows({ block, people }: { block: Workout['blocks'][number]; people
   return (
     <>
       <tr className="block-row"><th colSpan={people.length + 1}>Block {block.number}</th></tr>
-      {block.rows.map((row, index) => (
-        <tr key={`${block.number}-${row.exerciseId}`} style={{ '--row': block.number * 3 + index } as React.CSSProperties}>
+      {block.rows.map((row) => (
+        <tr key={`${block.number}-${row.exerciseId}`}>
           <th>{row.exercise}</th>
           {people.map((person) => <td key={person.id}>{row.prescriptions[person.id]}</td>)}
         </tr>

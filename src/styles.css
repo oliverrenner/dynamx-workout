@@ -92,7 +92,7 @@ th, td { padding: 17px 20px; border-bottom: 1px solid var(--line); text-align: l
 thead th { color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
 tbody th { width: 42%; font-size: 15px; }
 tbody td { font: 700 15px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
-tbody tr:not(.block-row) { animation: row-in .32s calc(var(--row) * 25ms) ease both; }
+tbody tr:not(.block-row) { animation: row-in .32s ease both; }
 @keyframes row-in { from { opacity: 0; transform: translateX(-8px); } }
 .block-row th { padding: 12px 20px; background: var(--ink); color: var(--acid); border: 0; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
 
