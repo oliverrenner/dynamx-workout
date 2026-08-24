@@ -7,7 +7,7 @@ export function normalizeLevel(value: unknown): Level {
   if (value === 'advanced') return 'level5';
   return 'level3';
 }
-export type EquipmentId = 'kettlebell' | 'dumbbells' | 'bands' | 'pullup-bar' | 'bench-box' | 'jump-rope';
+export type EquipmentId = 'kettlebell' | 'dumbbells' | 'bands' | 'pullup-bar' | 'bench-box' | 'jump-rope' | 'exercise-ball' | 'cable-machine';
 export type WorkoutFormat = '3x3' | '4x2';
 
 export interface User {

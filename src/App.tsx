@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { exerciseInstruction } from './data/exercise-instructions';
 import { EQUIPMENT, EXERCISES, type Exercise, type Movement } from './data/exercises';
 import { api } from './lib/api';
 import { availableExercises, generateWorkout } from './lib/generator';
@@ -134,6 +135,9 @@ function WorkoutSheet({ workout, language, mode, onBack, onAgain, onSave, onEdit
   const exercises = availableExercises(workout.equipment);
   const running = Boolean(workout.startedAt && !workout.finishedAt);
   const [now, setNow] = useState(Date.now());
+  const [openInfo, setOpenInfo] = useState<string | null>(null);
+
+  useEffect(() => setOpenInfo(null), [workout.id]);
 
   useEffect(() => {
     setNow(Date.now());
@@ -183,7 +187,7 @@ function WorkoutSheet({ workout, language, mode, onBack, onAgain, onSave, onEdit
           <thead><tr><th>{copy.exercise}</th>{workout.people.map((person) => <th key={person.id}>{person.name}</th>)}</tr></thead>
           <tbody>
             {workout.blocks.map((block) => (
-              <BlockRows key={block.number} block={block} people={workout.people} exercises={exercises} language={language} disabled={editStatus === 'saving' || Boolean(workout.finishedAt)} locked={Boolean(workout.finishedAt)} onEdit={onEdit} />
+              <BlockRows key={block.number} block={block} people={workout.people} exercises={exercises} language={language} disabled={editStatus === 'saving' || Boolean(workout.finishedAt)} locked={Boolean(workout.finishedAt)} openInfo={openInfo} onToggleInfo={(key) => setOpenInfo((current) => current === key ? null : key)} onEdit={onEdit} />
             ))}
           </tbody>
         </table>
@@ -199,51 +203,63 @@ interface BlockRowsProps {
   language: Language;
   disabled: boolean;
   locked: boolean;
+  openInfo: string | null;
+  onToggleInfo: (key: string) => void;
   onEdit: (edit: WorkoutEdit) => Promise<void>;
 }
 
-function BlockRows({ block, people, exercises, language, disabled, locked, onEdit }: BlockRowsProps) {
+function BlockRows({ block, people, exercises, language, disabled, locked, openInfo, onToggleInfo, onEdit }: BlockRowsProps) {
   const copy = COPY[language];
   return (
     <>
       <tr className="block-row"><th colSpan={people.length + 1}>{copy.block} {block.number}</th></tr>
-      {block.rows.map((row, rowIndex) => (
-        <tr key={`${block.number}-${rowIndex}`}>
-          <th>
-            <span className={`cell-select exercise-cell ${locked ? 'locked' : ''}`}>
-              <select
-                aria-label={copy.exerciseLabel(rowIndex + 1, block.number)}
-                value={row.exerciseId}
-                disabled={disabled}
-                onChange={(event) => void onEdit({ type: 'exercise', blockNumber: block.number, rowIndex, exerciseId: event.target.value })}
-              >
-                {MOVEMENTS.map((movement) => {
-                  const options = exercises.filter((exercise) => exercise.movement === movement.id);
-                  return options.length > 0 && <optgroup key={movement.id} label={localizeMovement(movement.id, movement.label, language)}>{options.map((exercise) => <option key={exercise.id} value={exercise.id}>{localizeExercise(exercise.id, exercise.name, language)}</option>)}</optgroup>;
-                })}
-              </select>
-            </span>
-          </th>
-          {people.map((person) => {
-            const current = row.prescriptions[person.id];
-            const options = [...new Set([current, ...prescriptionOptions(row.exerciseId)])];
-            return (
-              <td key={person.id}>
-                <span className={`cell-select prescription-cell ${locked ? 'locked' : ''}`}>
+      {block.rows.map((row, rowIndex) => {
+        const infoKey = `${block.number}-${rowIndex}`;
+        const infoId = `exercise-info-${infoKey}`;
+        const expanded = openInfo === infoKey;
+        const exerciseName = localizeExercise(row.exerciseId, row.exercise, language);
+        return (
+          <tr key={infoKey}>
+            <th>
+              <div className={`exercise-control ${locked ? 'locked' : ''}`}>
+                <span className={`cell-select exercise-cell ${locked ? 'locked' : ''}`}>
                   <select
-                    aria-label={copy.prescriptionLabel(person.name, localizeExercise(row.exerciseId, row.exercise, language), block.number)}
-                    value={current}
+                    aria-label={copy.exerciseLabel(rowIndex + 1, block.number)}
+                    value={row.exerciseId}
                     disabled={disabled}
-                    onChange={(event) => void onEdit({ type: 'prescription', blockNumber: block.number, rowIndex, personId: person.id, value: event.target.value })}
+                    onChange={(event) => void onEdit({ type: 'exercise', blockNumber: block.number, rowIndex, exerciseId: event.target.value })}
                   >
-                    {options.map((option) => <option key={option} value={option}>{localizePrescription(option, language)}</option>)}
+                    {MOVEMENTS.map((movement) => {
+                      const options = exercises.filter((exercise) => exercise.movement === movement.id);
+                      return options.length > 0 && <optgroup key={movement.id} label={localizeMovement(movement.id, movement.label, language)}>{options.map((exercise) => <option key={exercise.id} value={exercise.id}>{localizeExercise(exercise.id, exercise.name, language)}</option>)}</optgroup>;
+                    })}
                   </select>
                 </span>
-              </td>
-            );
-          })}
-        </tr>
-      ))}
+                <button type="button" className="exercise-info-button" aria-expanded={expanded} aria-controls={infoId} aria-label={copy.exerciseInfoLabel(exerciseName, expanded)} onClick={() => onToggleInfo(infoKey)}>i</button>
+              </div>
+              {expanded && <p className="exercise-instruction" id={infoId}>{exerciseInstruction(row.exerciseId, language)}</p>}
+            </th>
+            {people.map((person) => {
+              const current = row.prescriptions[person.id];
+              const options = [...new Set([current, ...prescriptionOptions(row.exerciseId)])];
+              return (
+                <td key={person.id}>
+                  <span className={`cell-select prescription-cell ${locked ? 'locked' : ''}`}>
+                    <select
+                      aria-label={copy.prescriptionLabel(person.name, localizeExercise(row.exerciseId, row.exercise, language), block.number)}
+                      value={current}
+                      disabled={disabled}
+                      onChange={(event) => void onEdit({ type: 'prescription', blockNumber: block.number, rowIndex, personId: person.id, value: event.target.value })}
+                    >
+                      {options.map((option) => <option key={option} value={option}>{localizePrescription(option, language)}</option>)}
+                    </select>
+                  </span>
+                </td>
+              );
+            })}
+          </tr>
+        );
+      })}
     </>
   );
 }

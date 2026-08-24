@@ -159,7 +159,14 @@ tbody td { font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .cell-select select:disabled { cursor: wait; opacity: .55; }
 .cell-select.locked::after { display: none; }
 .cell-select.locked select:disabled { padding-right: 15px; cursor: default; opacity: .7; }
-.exercise-cell select { font-size: 12px; font-weight: 700; }
+.exercise-control { position: relative; }
+.exercise-cell select { padding-right: 56px; font-size: 12px; font-weight: 700; }
+.exercise-info-button { width: 18px; height: 18px; position: absolute; z-index: 1; top: 50%; right: 29px; transform: translateY(-50%); display: grid; place-items: center; padding: 0; border: 1px solid #aeb0a8; border-radius: 50%; background: var(--paper); color: var(--muted); font: 700 10px/1 Georgia, serif; cursor: pointer; }
+.exercise-info-button:hover, .exercise-info-button[aria-expanded="true"] { border-color: var(--ink); background: var(--ink); color: white; }
+.exercise-info-button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.exercise-control.locked .exercise-info-button { right: 10px; }
+.exercise-control.locked .exercise-cell select:disabled { padding-right: 40px; }
+.exercise-instruction { margin: 0; padding: 0 15px 11px; color: var(--muted); font-size: 9px; font-weight: 500; line-height: 1.4; }
 .prescription-cell select { font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 .workout-group { padding-top: 24px; }
@@ -254,6 +261,11 @@ tbody td { font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .editable-table:not(.many-people) tbody td { width: 28%; white-space: nowrap; }
   .cell-select select { padding: 10px 24px 10px 9px; font-size: 10px; }
   .cell-select::after { right: 7px; }
+  .exercise-cell select { padding-right: 48px; }
+  .exercise-info-button { right: 23px; }
+  .exercise-control.locked .exercise-info-button { right: 7px; }
+  .exercise-control.locked .exercise-cell select:disabled { padding-right: 34px; }
+  .exercise-instruction { padding: 0 9px 9px; font-size: 8px; }
   table.many-people { min-width: 660px; }
   .catalogue-wrap { overflow: visible; }
   .catalogue-table { min-width: 0; display: block; }
@@ -283,7 +295,7 @@ tbody td { font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 @media print {
   body { background: white; }
-  header, .builder, .sheet-actions, .edit-hint, .workout-state, .lifecycle-error { display: none !important; }
+  header, .builder, .sheet-actions, .edit-hint, .workout-state, .lifecycle-error, .exercise-info-button, .exercise-instruction { display: none !important; }
   main { max-width: none; padding: 0; }
   .workout-sheet { margin: 0; }
   .sheet-heading { margin: 0 0 10px; }

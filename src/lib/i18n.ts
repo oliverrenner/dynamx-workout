@@ -76,6 +76,7 @@ export interface Copy {
   selectedCount: (count: number) => string;
   editPersonLabel: (name: string) => string;
   exerciseLabel: (row: number, block: number) => string;
+  exerciseInfoLabel: (exercise: string, expanded: boolean) => string;
   prescriptionLabel: (person: string, exercise: string, block: number) => string;
 }
 
@@ -150,6 +151,7 @@ export const COPY: Record<Language, Copy> = {
     selectedCount: (count) => `${count || 'None'} selected`,
     editPersonLabel: (name) => `Edit ${name}`,
     exerciseLabel: (row, block) => `Exercise ${row} in block ${block}`,
+    exerciseInfoLabel: (exercise, expanded) => `${expanded ? 'Hide' : 'Show'} instructions for ${exercise}`,
     prescriptionLabel: (person, exercise, block) => `${person} prescription for ${exercise} in block ${block}`,
   },
   de: {
@@ -222,6 +224,7 @@ export const COPY: Record<Language, Copy> = {
     selectedCount: (count) => count ? `${count} ausgewählt` : 'Keine ausgewählt',
     editPersonLabel: (name) => `${name} bearbeiten`,
     exerciseLabel: (row, block) => `Übung ${row} in Block ${block}`,
+    exerciseInfoLabel: (exercise, expanded) => `Anleitung für ${exercise} ${expanded ? 'ausblenden' : 'anzeigen'}`,
     prescriptionLabel: (person, exercise, block) => `${person}: Vorgabe für ${exercise} in Block ${block}`,
   },
 };
@@ -268,6 +271,19 @@ const GERMAN_EXERCISES: Record<string, string> = {
   'box-jump': 'Box-Sprung',
   'jump-rope': 'Seilspringen',
   'rope-high-knees': 'Kniehebelauf mit Seil',
+  'criss-cross': 'Criss Cross',
+  crunch: 'Crunch',
+  'leg-raise': 'Beinheben',
+  'bird-dog-crunch': 'Diagonaler Vierfüßler-Crunch',
+  'bicycle-crunch': 'Radeln',
+  'plank-rock': 'Plank vor/zurück',
+  'plank-up-down': 'Plank Up & Down',
+  'side-plank-rotation': 'Seitstütz mit Drehung',
+  'straight-jump': 'Strecksprung',
+  'lateral-jump': 'Seitlicher Sprung',
+  'ball-glute-bridge': 'Beckenheben am Ball',
+  'lat-pulldown-hold': 'Latzug mit Halten',
+  'lat-pulldown-leg-extension': 'Latzug mit Beinstreckung',
 };
 
 const GERMAN_EQUIPMENT: Record<EquipmentId, string> = {
@@ -277,6 +293,8 @@ const GERMAN_EQUIPMENT: Record<EquipmentId, string> = {
   'pullup-bar': 'Klimmzugstange',
   'bench-box': 'Bank / Box',
   'jump-rope': 'Springseil',
+  'exercise-ball': 'Gymnastikball',
+  'cable-machine': 'Kabelzug',
 };
 
 const GERMAN_MOVEMENTS: Record<Movement, string> = {

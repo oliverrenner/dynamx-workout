@@ -16,6 +16,20 @@ describe('workout generator', () => {
     expect(workout.blocks.flatMap((block) => block.rows).every((row) => bodyweightIds.has(row.exerciseId))).toBe(true);
   });
 
+  it('only unlocks ball and cable exercises when that equipment is selected', () => {
+    const bodyweightIds = availableExercises([]).map((exercise) => exercise.id);
+    const ballIds = availableExercises(['exercise-ball']).map((exercise) => exercise.id);
+    const cableIds = availableExercises(['cable-machine']).map((exercise) => exercise.id);
+
+    expect(bodyweightIds).not.toContain('ball-glute-bridge');
+    expect(bodyweightIds).not.toContain('lat-pulldown-hold');
+    expect(ballIds).toContain('ball-glute-bridge');
+    expect(ballIds).not.toContain('lat-pulldown-hold');
+    expect(cableIds).toContain('lat-pulldown-hold');
+    expect(cableIds).toContain('lat-pulldown-leg-extension');
+    expect(cableIds).not.toContain('ball-glute-bridge');
+  });
+
   it.each([
     ['3x3', 3, 3],
     ['4x2', 4, 2],
@@ -32,6 +46,7 @@ describe('workout generator', () => {
   });
 
   it('provides a distinct curated prescription for all five levels', () => {
+    expect(EXERCISES).toHaveLength(54);
     for (const exercise of EXERCISES) {
       expect(Object.keys(exercise.targets)).toEqual([...LEVELS]);
       expect(new Set(Object.values(exercise.targets))).toHaveLength(LEVELS.length);
