@@ -1,4 +1,4 @@
-import type { Level, Profile, SessionPayload, Workout, WorkoutAction, WorkoutEdit } from '../types';
+import { normalizeLevel, type Level, type Profile, type SessionPayload, type Workout, type WorkoutAction, type WorkoutEdit } from '../types';
 import { applyWorkoutEdit } from './workout-edit';
 import { finishWorkout as applyFinish, startWorkout as applyStart } from './workout-lifecycle';
 
@@ -8,10 +8,10 @@ const LOCAL_WORKOUT_KEY = 'dynamx.local.workouts';
 
 function localProfiles(): Profile[] {
   const stored = localStorage.getItem(LOCAL_PROFILE_KEY);
-  if (stored) return JSON.parse(stored) as Profile[];
+  if (stored) return (JSON.parse(stored) as Profile[]).map((profile) => ({ ...profile, level: normalizeLevel(profile.level) }));
   const seeded: Profile[] = [
-    { id: 'oliver', name: 'Oliver', level: 'regular', createdAt: new Date().toISOString() },
-    { id: 'katrin', name: 'Katrin', level: 'regular', createdAt: new Date().toISOString() },
+    { id: 'oliver', name: 'Oliver', level: 'level3', createdAt: new Date().toISOString() },
+    { id: 'katrin', name: 'Katrin', level: 'level3', createdAt: new Date().toISOString() },
   ];
   localStorage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(seeded));
   return seeded;

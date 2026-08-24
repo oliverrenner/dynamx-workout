@@ -5,7 +5,7 @@ import { availableExercises, generateWorkout } from './lib/generator';
 import { COPY, detectLanguage, localeFor, localizeActionValue, localizeEquipment, localizeExercise, localizeMovement, localizePrescription, storeLanguage, type Language } from './lib/i18n';
 import { groupWorkouts, workoutStatus } from './lib/workout-collection';
 import { applyWorkoutEdit, prescriptionOptions } from './lib/workout-edit';
-import type { EquipmentId, Level, Profile, SessionPayload, Workout, WorkoutAction, WorkoutEdit, WorkoutFormat } from './types';
+import { LEVELS, type EquipmentId, type Level, type Profile, type SessionPayload, type Workout, type WorkoutAction, type WorkoutEdit, type WorkoutFormat } from './types';
 
 const FORMATS: { value: WorkoutFormat; label: string }[] = [
   { value: '3x3', label: '3 × 3' },
@@ -77,7 +77,7 @@ interface ProfileEditorProps {
 function ProfileEditor({ profile, language, onClose, onSave, onDelete }: ProfileEditorProps) {
   const copy = COPY[language];
   const [name, setName] = useState(profile?.name || '');
-  const [level, setLevel] = useState<Level>(profile?.level || 'regular');
+  const [level, setLevel] = useState<Level>(profile?.level || 'level3');
   const [busy, setBusy] = useState(false);
 
   const submit = async (event: React.FormEvent) => {
@@ -95,7 +95,7 @@ function ProfileEditor({ profile, language, onClose, onSave, onDelete }: Profile
         <fieldset>
           <legend>{copy.level}</legend>
           <div className="level-options">
-            {(['beginner', 'regular', 'advanced'] as Level[]).map((value) => (
+            {LEVELS.map((value) => (
               <label key={value} className={level === value ? 'selected' : ''}>
                 <input type="radio" name="level" value={value} checked={level === value} onChange={() => setLevel(value)} />
                 {copy.levels[value]}
@@ -336,9 +336,7 @@ function ExerciseCatalogue({ language }: { language: Language }) {
               <th>{copy.exercise}</th>
               <th>{copy.movement}</th>
               <th>{copy.equipment}</th>
-              <th>{copy.levels.beginner}</th>
-              <th>{copy.levels.regular}</th>
-              <th>{copy.levels.advanced}</th>
+              {LEVELS.map((level) => <th key={level}>{copy.levels[level]}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -353,9 +351,7 @@ function ExerciseCatalogue({ language }: { language: Language }) {
                   <th>{localizeExercise(exercise.id, exercise.name, language)}</th>
                   <td><span className="catalogue-label">{copy.movement}</span>{localizeMovement(movement.id, movement.label, language)}</td>
                   <td><span className="catalogue-label">{copy.equipment}</span>{requiredEquipment.length ? requiredEquipment.join(', ') : copy.bodyweight}</td>
-                  <td><span className="catalogue-label">{copy.levels.beginner}</span>{localizePrescription(exercise.targets.beginner, language)}</td>
-                  <td><span className="catalogue-label">{copy.levels.regular}</span>{localizePrescription(exercise.targets.regular, language)}</td>
-                  <td><span className="catalogue-label">{copy.levels.advanced}</span>{localizePrescription(exercise.targets.advanced, language)}</td>
+                  {LEVELS.map((level) => <td key={level}><span className="catalogue-label">{copy.levels[level]}</span>{localizePrescription(exercise.targets[level], language)}</td>)}
                 </tr>
               );
             })}

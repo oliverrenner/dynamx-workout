@@ -3,7 +3,7 @@ import type { Profile } from '../types';
 import { generateWorkout } from './generator';
 import { finishWorkout, startWorkout } from './workout-lifecycle';
 
-const person: Profile = { id: 'oliver', name: 'Oliver', level: 'regular', createdAt: '2026-08-24T00:00:00.000Z' };
+const person: Profile = { id: 'oliver', name: 'Oliver', level: 'level3', createdAt: '2026-08-24T00:00:00.000Z' };
 
 describe('workout lifecycle', () => {
   it('starts and finishes a workout with a server-derived duration', () => {

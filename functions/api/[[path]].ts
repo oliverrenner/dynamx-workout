@@ -1,6 +1,6 @@
 import { applyWorkoutEdit } from '../../src/lib/workout-edit';
 import { finishWorkout, startWorkout } from '../../src/lib/workout-lifecycle';
-import type { Workout, WorkoutAction, WorkoutEdit } from '../../src/types';
+import { normalizeLevel, type Level, type Workout, type WorkoutAction, type WorkoutEdit } from '../../src/types';
 
 interface Env {
   DB: D1Database;
@@ -33,7 +33,7 @@ const sha256 = async (value: string) => base64url(new Uint8Array(await crypto.su
 const cookieValue = (request: Request, name: string) => request.headers.get('cookie')?.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1);
 const futureIso = (days: number) => new Date(Date.now() + days * 86400000).toISOString();
 const safeName = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 32) : '';
-const safeLevel = (value: unknown) => ['beginner', 'regular', 'advanced'].includes(String(value)) ? String(value) : 'regular';
+const safeLevel = (value: unknown): Level => normalizeLevel(value);
 
 async function currentUser(request: Request, env: Env): Promise<Authed | null> {
   const token = cookieValue(request, COOKIE);
@@ -113,7 +113,7 @@ async function callback(request: Request, env: Env): Promise<Response> {
     user = { id: crypto.randomUUID() };
     await env.DB.batch([
       env.DB.prepare('INSERT INTO users (id, google_sub, email, name, picture) VALUES (?, ?, ?, ?, ?)').bind(user.id, info.sub, info.email, info.name, info.picture || null),
-      env.DB.prepare('INSERT INTO profiles (id, user_id, name, level) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), user.id, safeName(info.given_name || info.name.split(' ')[0]) || 'Me', 'regular'),
+      env.DB.prepare('INSERT INTO profiles (id, user_id, name, level) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), user.id, safeName(info.given_name || info.name.split(' ')[0]) || 'Me', 'level3'),
     ]);
   } else {
     await env.DB.prepare("UPDATE users SET email = ?, name = ?, picture = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?")
@@ -147,7 +147,8 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   if (request.method === 'GET' && path === '/api/me') {
     const result = await env.DB.prepare('SELECT id, name, level, created_at AS createdAt FROM profiles WHERE user_id = ? ORDER BY created_at').bind(user.id).all();
-    return json({ user, profiles: result.results });
+    const profiles = result.results.map((profile) => ({ ...profile, level: normalizeLevel(profile.level) }));
+    return json({ user, profiles });
   }
 
   if (request.method === 'POST' && path === '/api/profiles') {

@@ -5,8 +5,8 @@ import { generateWorkout } from './generator';
 import { applyWorkoutEdit, prescriptionOptions } from './workout-edit';
 
 const people: Profile[] = [
-  { id: 'oliver', name: 'Oliver', level: 'regular', createdAt: '2026-08-24T00:00:00.000Z' },
-  { id: 'katrin', name: 'Katrin', level: 'beginner', createdAt: '2026-08-24T00:00:00.000Z' },
+  { id: 'oliver', name: 'Oliver', level: 'level3', createdAt: '2026-08-24T00:00:00.000Z' },
+  { id: 'katrin', name: 'Katrin', level: 'level1', createdAt: '2026-08-24T00:00:00.000Z' },
 ];
 
 describe('workout editing', () => {
@@ -19,7 +19,7 @@ describe('workout editing', () => {
     const changed = result.workout.blocks[0].rows[0];
 
     expect(changed.exerciseId).toBe(replacement.id);
-    expect(changed.prescriptions).toEqual({ oliver: replacement.targets.regular, katrin: replacement.targets.beginner });
+    expect(changed.prescriptions).toEqual({ oliver: replacement.targets.level3, katrin: replacement.targets.level1 });
     expect(result.action).toMatchObject({ type: 'exercise', from: original.exercise, to: replacement.name, blockNumber: 1, rowIndex: 0 });
     expect(workout.blocks[0].rows[0].exerciseId).toBe(original.exerciseId);
   });

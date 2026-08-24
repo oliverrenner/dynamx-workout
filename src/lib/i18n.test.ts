@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localizeActionValue, localizePrescription, resolveLanguage } from './i18n';
+import { COPY, localizeActionValue, localizePrescription, resolveLanguage } from './i18n';
 
 describe('language handling', () => {
   it('uses a stored manual preference first', () => {
@@ -18,5 +18,10 @@ describe('language handling', () => {
     expect(localizePrescription('15 reps', 'de')).toBe('15 Wdh.');
     expect(localizeActionValue('Air squat', 'de')).toBe('Kniebeuge');
     expect(localizeActionValue('Air squat', 'en')).toBe('Air squat');
+  });
+
+  it('uses five neutral numbered levels in both languages', () => {
+    expect(Object.values(COPY.en.levels)).toEqual(['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5']);
+    expect(Object.values(COPY.de.levels)).toEqual(['Stufe 1', 'Stufe 2', 'Stufe 3', 'Stufe 4', 'Stufe 5']);
   });
 });

@@ -1,4 +1,12 @@
-export type Level = 'beginner' | 'regular' | 'advanced';
+export const LEVELS = ['level1', 'level2', 'level3', 'level4', 'level5'] as const;
+export type Level = typeof LEVELS[number];
+
+export function normalizeLevel(value: unknown): Level {
+  if (LEVELS.includes(value as Level)) return value as Level;
+  if (value === 'beginner') return 'level1';
+  if (value === 'advanced') return 'level5';
+  return 'level3';
+}
 export type EquipmentId = 'kettlebell' | 'dumbbells' | 'bands' | 'pullup-bar' | 'bench-box' | 'jump-rope';
 export type WorkoutFormat = '3x3' | '4x2';
 
