@@ -166,7 +166,7 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   if (request.method === 'POST' && path === '/api/workouts') {
     const body = await readBody(request);
-    if (!['3x3', '4x3', '4x2'].includes(String(body.format)) || !Array.isArray(body.blocks) || !Array.isArray(body.people)) return json({ error: 'Invalid workout.' }, 400);
+    if (!['3x3', '4x2'].includes(String(body.format)) || !Array.isArray(body.blocks) || !Array.isArray(body.people)) return json({ error: 'Invalid workout.' }, 400);
     const payload = JSON.stringify(body);
     if (payload.length > 50000) return json({ error: 'Workout is too large.' }, 413);
     await env.DB.prepare('INSERT INTO workouts (id, user_id, format, equipment_json, workout_json, created_at) VALUES (?, ?, ?, ?, ?, ?)')

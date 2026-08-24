@@ -3,7 +3,6 @@ import type { EquipmentId, Profile, Workout, WorkoutFormat } from '../types';
 
 const FORMAT: Record<WorkoutFormat, { blocks: number; exercises: number }> = {
   '3x3': { blocks: 3, exercises: 3 },
-  '4x3': { blocks: 4, exercises: 3 },
   '4x2': { blocks: 4, exercises: 2 },
 };
 

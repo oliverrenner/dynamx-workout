@@ -4,7 +4,7 @@ A deliberately small workout generator for one or more people. Pick the profiles
 
 ## Product rules
 
-- `3 × 3` means 3 blocks of 3 exercises; `4 × 3` and `4 × 2` follow the same pattern.
+- `3 × 3` means 3 blocks of 3 exercises; `4 × 2` means 4 blocks of 2 exercises.
 - No selected equipment means bodyweight-only.
 - Exercises are curated in `src/data/exercises.ts`.
 - A profile level changes only the tight rep/time prescription in the table.

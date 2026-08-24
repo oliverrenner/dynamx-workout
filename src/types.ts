@@ -1,6 +1,6 @@
 export type Level = 'beginner' | 'regular' | 'advanced';
 export type EquipmentId = 'kettlebell' | 'dumbbells' | 'bands' | 'pullup-bar' | 'bench-box' | 'jump-rope';
-export type WorkoutFormat = '3x3' | '4x3' | '4x2';
+export type WorkoutFormat = '3x3' | '4x2';
 
 export interface User {
   id: string;

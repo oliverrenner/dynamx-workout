@@ -6,7 +6,6 @@ import type { EquipmentId, Level, Profile, SessionPayload, Workout, WorkoutForma
 
 const FORMATS: { value: WorkoutFormat; label: string; note: string }[] = [
   { value: '3x3', label: '3 × 3', note: '3 blocks · 3 moves' },
-  { value: '4x3', label: '4 × 3', note: '4 blocks · 3 moves' },
   { value: '4x2', label: '4 × 2', note: '4 blocks · 2 moves' },
 ];
 

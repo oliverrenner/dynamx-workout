@@ -17,7 +17,6 @@ describe('workout generator', () => {
 
   it.each([
     ['3x3', 3, 3],
-    ['4x3', 4, 3],
     ['4x2', 4, 2],
   ] as const)('creates the %s format', (format, blocks, rows) => {
     const workout = generateWorkout(people, format, ['kettlebell'], format);
@@ -32,7 +31,7 @@ describe('workout generator', () => {
   });
 
   it('does not place the same movement back-to-back', () => {
-    const workout = generateWorkout(people, '4x3', [], 'movement-balance');
+    const workout = generateWorkout(people, '4x2', [], 'movement-balance');
     const exerciseById = new Map(availableExercises([]).map((exercise) => [exercise.id, exercise]));
     const movements = workout.blocks.flatMap((block) => block.rows).map((row) => exerciseById.get(row.exerciseId)?.movement);
     movements.slice(1).forEach((movement, index) => expect(movement).not.toBe(movements[index]));
