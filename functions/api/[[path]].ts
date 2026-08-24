@@ -175,7 +175,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
 
   if (request.method === 'GET' && path === '/api/workouts') {
-    const result = await env.DB.prepare('SELECT workout_json FROM workouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20').bind(user.id).all<{ workout_json: string }>();
+    const result = await env.DB.prepare("SELECT workout_json FROM workouts WHERE user_id = ? AND format IN ('3x3', '4x2') ORDER BY created_at DESC LIMIT 20").bind(user.id).all<{ workout_json: string }>();
     return json(result.results.map((row) => JSON.parse(row.workout_json)));
   }
 
