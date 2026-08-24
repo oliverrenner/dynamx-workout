@@ -1,4 +1,5 @@
-import type { Level, Profile, SessionPayload, Workout } from '../types';
+import type { Level, Profile, SessionPayload, Workout, WorkoutAction, WorkoutEdit } from '../types';
+import { applyWorkoutEdit } from './workout-edit';
 
 const LOCAL_USER = { id: 'local-user', email: 'oliver@example.com', name: 'Oliver Renner' };
 const LOCAL_PROFILE_KEY = 'dynamx.local.profiles';
@@ -68,6 +69,17 @@ export const api = {
       return;
     }
     await request<{ ok: true }>('/api/workouts', { method: 'POST', body: JSON.stringify(workout) });
+  },
+  async updateWorkout(id: string, edit: WorkoutEdit): Promise<{ workout: Workout; action: WorkoutAction }> {
+    if (import.meta.env.DEV) {
+      const workouts = JSON.parse(localStorage.getItem(LOCAL_WORKOUT_KEY) || '[]') as Workout[];
+      const current = workouts.find((workout) => workout.id === id);
+      if (!current) throw new Error('Workout not found.');
+      const result = applyWorkoutEdit(current, edit);
+      localStorage.setItem(LOCAL_WORKOUT_KEY, JSON.stringify(workouts.map((workout) => workout.id === id ? result.workout : workout)));
+      return result;
+    }
+    return request<{ workout: Workout; action: WorkoutAction }>(`/api/workouts/${id}`, { method: 'PATCH', body: JSON.stringify(edit) });
   },
   async workouts(): Promise<Workout[]> {
     if (import.meta.env.DEV) return JSON.parse(localStorage.getItem(LOCAL_WORKOUT_KEY) || '[]') as Workout[];

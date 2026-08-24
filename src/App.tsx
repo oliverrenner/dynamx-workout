@@ -1,12 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
-import { EQUIPMENT } from './data/exercises';
+import { EQUIPMENT, type Exercise, type Movement } from './data/exercises';
 import { api } from './lib/api';
-import { generateWorkout } from './lib/generator';
-import type { EquipmentId, Level, Profile, SessionPayload, Workout, WorkoutFormat } from './types';
+import { availableExercises, generateWorkout } from './lib/generator';
+import { prescriptionOptions } from './lib/workout-edit';
+import type { EquipmentId, Level, Profile, SessionPayload, Workout, WorkoutAction, WorkoutEdit, WorkoutFormat } from './types';
 
 const FORMATS: { value: WorkoutFormat; label: string; note: string }[] = [
   { value: '3x3', label: '3 × 3', note: '3 blocks · 3 moves' },
   { value: '4x2', label: '4 × 2', note: '4 blocks · 2 moves' },
+];
+
+const MOVEMENTS: { id: Movement; label: string }[] = [
+  { id: 'squat', label: 'Squat' },
+  { id: 'hinge', label: 'Hinge' },
+  { id: 'lunge', label: 'Lunge' },
+  { id: 'push', label: 'Push' },
+  { id: 'pull', label: 'Pull' },
+  { id: 'core', label: 'Core' },
+  { id: 'carry', label: 'Carry' },
+  { id: 'cardio', label: 'Cardio' },
 ];
 
 function BrandMark() {
@@ -80,38 +92,113 @@ function ProfileEditor({ profile, onClose, onSave, onDelete }: ProfileEditorProp
   );
 }
 
-function WorkoutSheet({ workout, onAgain }: { workout: Workout; onAgain: () => void }) {
+interface WorkoutSheetProps {
+  workout: Workout;
+  onAgain: () => void;
+  onEdit: (edit: WorkoutEdit) => Promise<void>;
+  editStatus: 'idle' | 'saving' | 'saved';
+  editError: string;
+}
+
+function WorkoutSheet({ workout, onAgain, onEdit, editStatus, editError }: WorkoutSheetProps) {
+  const exercises = availableExercises(workout.equipment);
   return (
     <section className="workout-sheet" aria-live="polite">
       <div className="sheet-heading">
-        <div><p className="eyebrow">Today’s workout</p><h2>{workout.format.replace('x', ' × ')}</h2></div>
+        <div>
+          <p className="eyebrow">Today’s workout</p>
+          <h2>{workout.format.replace('x', ' × ')}</h2>
+          <p className={`edit-hint ${editStatus}`}>{editError || (editStatus === 'saving' ? 'Saving change…' : editStatus === 'saved' ? 'Saved' : 'Click any cell to edit')}</p>
+        </div>
         <div className="sheet-actions"><button className="quiet-button" onClick={() => window.print()}>Print</button><button className="quiet-button" onClick={onAgain}>Regenerate</button></div>
       </div>
       <div className="table-wrap">
-        <table className={workout.people.length > 2 ? 'many-people' : ''}>
+        <table className={`editable-table ${workout.people.length > 2 ? 'many-people' : ''}`}>
           <thead><tr><th>Exercise</th>{workout.people.map((person) => <th key={person.id}>{person.name}</th>)}</tr></thead>
           <tbody>
             {workout.blocks.map((block) => (
-              <BlockRows key={block.number} block={block} people={workout.people} />
+              <BlockRows key={block.number} block={block} people={workout.people} exercises={exercises} disabled={editStatus === 'saving'} onEdit={onEdit} />
             ))}
           </tbody>
         </table>
       </div>
+      <ActionLog actions={workout.actions || []} />
     </section>
   );
 }
 
-function BlockRows({ block, people }: { block: Workout['blocks'][number]; people: Workout['people'] }) {
+interface BlockRowsProps {
+  block: Workout['blocks'][number];
+  people: Workout['people'];
+  exercises: Exercise[];
+  disabled: boolean;
+  onEdit: (edit: WorkoutEdit) => Promise<void>;
+}
+
+function BlockRows({ block, people, exercises, disabled, onEdit }: BlockRowsProps) {
   return (
     <>
       <tr className="block-row"><th colSpan={people.length + 1}>Block {block.number}</th></tr>
-      {block.rows.map((row) => (
-        <tr key={`${block.number}-${row.exerciseId}`}>
-          <th>{row.exercise}</th>
-          {people.map((person) => <td key={person.id}>{row.prescriptions[person.id]}</td>)}
+      {block.rows.map((row, rowIndex) => (
+        <tr key={`${block.number}-${rowIndex}`}>
+          <th>
+            <span className="cell-select exercise-cell">
+              <select
+                aria-label={`Exercise ${rowIndex + 1} in block ${block.number}`}
+                value={row.exerciseId}
+                disabled={disabled}
+                onChange={(event) => void onEdit({ type: 'exercise', blockNumber: block.number, rowIndex, exerciseId: event.target.value })}
+              >
+                {MOVEMENTS.map((movement) => {
+                  const options = exercises.filter((exercise) => exercise.movement === movement.id);
+                  return options.length > 0 && <optgroup key={movement.id} label={movement.label}>{options.map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name}</option>)}</optgroup>;
+                })}
+              </select>
+            </span>
+          </th>
+          {people.map((person) => {
+            const current = row.prescriptions[person.id];
+            const options = [...new Set([current, ...prescriptionOptions(row.exerciseId)])];
+            return (
+              <td key={person.id}>
+                <span className="cell-select prescription-cell">
+                  <select
+                    aria-label={`${person.name} prescription for ${row.exercise} in block ${block.number}`}
+                    value={current}
+                    disabled={disabled}
+                    onChange={(event) => void onEdit({ type: 'prescription', blockNumber: block.number, rowIndex, personId: person.id, value: event.target.value })}
+                  >
+                    {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                </span>
+              </td>
+            );
+          })}
         </tr>
       ))}
     </>
+  );
+}
+
+function ActionLog({ actions }: { actions: WorkoutAction[] }) {
+  return (
+    <section className="action-log" aria-label="Workout action log">
+      <div className="action-log-heading">
+        <div><p className="eyebrow">Changes</p><h3>Action log</h3></div>
+        <span>{actions.length} {actions.length === 1 ? 'change' : 'changes'}</span>
+      </div>
+      {actions.length === 0 ? <p className="empty-log">No edits yet.</p> : (
+        <ol>
+          {[...actions].reverse().map((action) => (
+            <li key={action.id}>
+              <time dateTime={action.createdAt}>{new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' }).format(new Date(action.createdAt))}</time>
+              <strong>Block {action.blockNumber} · {action.personName || 'Exercise'}</strong>
+              <span>{action.from}<i>→</i>{action.to}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }
 
@@ -126,6 +213,8 @@ function App() {
   const [history, setHistory] = useState<Workout[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editStatus, setEditStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [editError, setEditError] = useState('');
 
   useEffect(() => {
     api.session().then((payload) => {
@@ -171,11 +260,30 @@ function App() {
       const next = generateWorkout(selectedPeople, format, equipment);
       await api.saveWorkout(next);
       setWorkout(next);
+      setEditStatus('idle');
+      setEditError('');
       setHistory((current) => [next, ...current].slice(0, 8));
       requestAnimationFrame(() => document.querySelector('.workout-sheet')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not create the workout.');
     } finally { setBusy(false); }
+  };
+
+  const editWorkout = async (edit: WorkoutEdit) => {
+    if (!workout || editStatus === 'saving') return;
+    setEditStatus('saving');
+    setEditError('');
+    try {
+      const result = await api.updateWorkout(workout.id, edit);
+      const next = { ...result.workout, actions: [...(workout.actions || []), result.action] };
+      setWorkout(next);
+      setHistory((current) => current.map((item) => item.id === next.id ? next : item));
+      setEditStatus('saved');
+      window.setTimeout(() => setEditStatus('idle'), 1400);
+    } catch (caught) {
+      setEditError(caught instanceof Error ? caught.message : 'Could not save the change.');
+      setEditStatus('idle');
+    }
   };
 
   return (
@@ -224,10 +332,10 @@ function App() {
           </div>
         </section>
 
-        {workout && <WorkoutSheet workout={workout} onAgain={makeWorkout} />}
+        {workout && <WorkoutSheet workout={workout} onAgain={makeWorkout} onEdit={editWorkout} editStatus={editStatus} editError={editError} />}
 
         {!workout && history.length > 0 && (
-          <section className="history"><div><p className="eyebrow">Recent</p><h2>Saved workouts</h2></div><div className="history-list">{history.slice(0, 5).map((item) => <button key={item.id} onClick={() => setWorkout(item)}><span>{new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short' }).format(new Date(item.createdAt))}</span><strong>{item.people.map((person) => person.name).join(' + ')}</strong><small>{item.format.replace('x', ' × ')}</small></button>)}</div></section>
+          <section className="history"><div><p className="eyebrow">Recent</p><h2>Saved workouts</h2></div><div className="history-list">{history.slice(0, 5).map((item) => <button key={item.id} onClick={() => { setWorkout(item); setEditStatus('idle'); setEditError(''); }}><span>{new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short' }).format(new Date(item.createdAt))}</span><strong>{item.people.map((person) => person.name).join(' + ')}</strong><small>{item.format.replace('x', ' × ')}</small></button>)}</div></section>
         )}
       </main>
 

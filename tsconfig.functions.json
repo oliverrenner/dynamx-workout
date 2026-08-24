@@ -10,5 +10,10 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["functions/**/*.ts"]
+  "include": [
+    "functions/**/*.ts",
+    "src/types.ts",
+    "src/data/exercises.ts",
+    "src/lib/workout-edit.ts"
+  ]
 }

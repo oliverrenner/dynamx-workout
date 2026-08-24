@@ -1,3 +1,6 @@
+import { applyWorkoutEdit } from '../../src/lib/workout-edit';
+import type { Workout, WorkoutAction, WorkoutEdit } from '../../src/types';
+
 interface Env {
   DB: D1Database;
   APP_URL: string;
@@ -6,6 +9,7 @@ interface Env {
 }
 
 type Authed = { id: string; email: string; name: string; picture: string | null };
+type ActionRow = Omit<WorkoutAction, 'personId' | 'personName'> & { personId: string | null; personName: string | null };
 const COOKIE = '__Host-dynamx_session';
 const STATE_COOKIE = '__Host-dynamx_oauth_state';
 
@@ -174,9 +178,65 @@ async function route(request: Request, env: Env): Promise<Response> {
     return json({ ok: true }, 201);
   }
 
+  const workoutMatch = path.match(/^\/api\/workouts\/([^/]+)$/);
+  if (workoutMatch && request.method === 'PATCH') {
+    const stored = await env.DB.prepare('SELECT workout_json FROM workouts WHERE id = ? AND user_id = ?')
+      .bind(workoutMatch[1], user.id).first<{ workout_json: string }>();
+    if (!stored) return json({ error: 'Workout not found.' }, 404);
+
+    let result: ReturnType<typeof applyWorkoutEdit>;
+    try {
+      result = applyWorkoutEdit(JSON.parse(stored.workout_json) as Workout, await readBody(request) as unknown as WorkoutEdit);
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : 'Invalid workout edit.' }, 400);
+    }
+
+    const { actions: _actions, ...savedWorkout } = result.workout;
+    const action = result.action;
+    await env.DB.batch([
+      env.DB.prepare('UPDATE workouts SET workout_json = ? WHERE id = ? AND user_id = ?')
+        .bind(JSON.stringify(savedWorkout), workoutMatch[1], user.id),
+      env.DB.prepare(`
+        INSERT INTO workout_actions (
+          id, workout_id, user_id, action_type, block_number, row_index,
+          person_id, person_name, from_value, to_value, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        action.id, action.workoutId, user.id, action.type, action.blockNumber, action.rowIndex,
+        action.personId || null, action.personName || null, action.from, action.to, action.createdAt,
+      ),
+    ]);
+    return json(result);
+  }
+
   if (request.method === 'GET' && path === '/api/workouts') {
-    const result = await env.DB.prepare("SELECT workout_json FROM workouts WHERE user_id = ? AND format IN ('3x3', '4x2') ORDER BY created_at DESC LIMIT 20").bind(user.id).all<{ workout_json: string }>();
-    return json(result.results.map((row) => JSON.parse(row.workout_json)));
+    const result = await env.DB.prepare("SELECT id, workout_json FROM workouts WHERE user_id = ? AND format IN ('3x3', '4x2') ORDER BY created_at DESC LIMIT 20")
+      .bind(user.id).all<{ id: string; workout_json: string }>();
+    const actionResult = await env.DB.prepare(`
+      SELECT id, workout_id AS workoutId, action_type AS type, block_number AS blockNumber,
+        row_index AS rowIndex, person_id AS personId, person_name AS personName,
+        from_value AS "from", to_value AS "to", created_at AS createdAt
+      FROM workout_actions
+      WHERE user_id = ? AND workout_id IN (
+        SELECT id FROM workouts
+        WHERE user_id = ? AND format IN ('3x3', '4x2')
+        ORDER BY created_at DESC LIMIT 20
+      )
+      ORDER BY created_at ASC
+    `).bind(user.id, user.id).all<ActionRow>();
+    const actions = new Map<string, WorkoutAction[]>();
+    for (const row of actionResult.results) {
+      const action: WorkoutAction = {
+        ...row,
+        personId: row.personId || undefined,
+        personName: row.personName || undefined,
+      };
+      actions.set(action.workoutId, [...(actions.get(action.workoutId) || []), action]);
+    }
+    return json(result.results.map((row) => ({
+      ...JSON.parse(row.workout_json) as Workout,
+      actions: actions.get(row.id) || [],
+    })));
   }
 
   return json({ error: 'Not found.' }, 404);

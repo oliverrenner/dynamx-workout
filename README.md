@@ -8,6 +8,8 @@ A deliberately small workout generator for one or more people. Pick the profiles
 - No selected equipment means bodyweight-only.
 - Exercises are curated in `src/data/exercises.ts`.
 - A profile level changes only the tight rep/time prescription in the table.
+- Exercise and prescription cells can be changed only through curated dropdowns; changing an exercise resets its prescriptions for each profile level.
+- Every accepted cell change is saved and appended to the workout's action log.
 - Profiles and generated workouts are stored in Cloudflare D1.
 
 ## Local development
