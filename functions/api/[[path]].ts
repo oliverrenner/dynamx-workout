@@ -14,6 +14,7 @@ type ActionRow = Omit<WorkoutAction, 'personId' | 'personName'> & { personId: st
 type StoredWorkoutRow = {
   id: string;
   workout_json: string;
+  saved_at: string | null;
   started_at: string | null;
   finished_at: string | null;
   duration_seconds: number | null;
@@ -179,6 +180,8 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (request.method === 'POST' && path === '/api/workouts') {
     const body = await readBody(request);
     if (!['3x3', '4x2'].includes(String(body.format)) || !Array.isArray(body.blocks) || !Array.isArray(body.people)) return json({ error: 'Invalid workout.' }, 400);
+    const savedAt = new Date().toISOString();
+    const rawActions = Array.isArray(body.actions) ? body.actions.slice(0, 100) as Record<string, unknown>[] : [];
     const workout: Workout = {
       id: String(body.id),
       format: String(body.format) as Workout['format'],
@@ -186,25 +189,65 @@ async function route(request: Request, env: Env): Promise<Response> {
       people: body.people as Workout['people'],
       blocks: body.blocks as Workout['blocks'],
       createdAt: String(body.createdAt || new Date().toISOString()),
+      savedAt,
     };
-    const payload = JSON.stringify(workout);
+    if (!workout.id || workout.id === 'undefined') return json({ error: 'Invalid workout.' }, 400);
+    const actions: WorkoutAction[] = [];
+    for (const raw of rawActions) {
+      if (!['exercise', 'prescription'].includes(String(raw.type)) || !Number.isInteger(raw.blockNumber) || !Number.isInteger(raw.rowIndex)) {
+        return json({ error: 'Invalid workout action.' }, 400);
+      }
+      actions.push({
+        id: crypto.randomUUID(),
+        workoutId: workout.id,
+        type: String(raw.type) as WorkoutAction['type'],
+        blockNumber: Number(raw.blockNumber),
+        rowIndex: Number(raw.rowIndex),
+        personId: typeof raw.personId === 'string' ? raw.personId : undefined,
+        personName: typeof raw.personName === 'string' ? raw.personName.slice(0, 32) : undefined,
+        from: String(raw.from || '').slice(0, 80),
+        to: String(raw.to || '').slice(0, 80),
+        createdAt: typeof raw.createdAt === 'string' && Number.isFinite(Date.parse(raw.createdAt)) ? raw.createdAt : savedAt,
+      });
+    }
+    const { actions: _actions, ...savedWorkout } = workout;
+    const payload = JSON.stringify(savedWorkout);
     if (payload.length > 50000) return json({ error: 'Workout is too large.' }, 413);
-    await env.DB.prepare('INSERT INTO workouts (id, user_id, format, equipment_json, workout_json, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind(workout.id, user.id, workout.format, JSON.stringify(workout.equipment), payload, workout.createdAt).run();
-    return json({ ok: true }, 201);
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO workouts (id, user_id, format, equipment_json, workout_json, created_at, saved_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(workout.id, user.id, workout.format, JSON.stringify(workout.equipment), payload, workout.createdAt, savedAt),
+      ...actions.map((action) => env.DB.prepare(`
+        INSERT INTO workout_actions (
+          id, workout_id, user_id, action_type, block_number, row_index,
+          person_id, person_name, from_value, to_value, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        action.id, action.workoutId, user.id, action.type, action.blockNumber, action.rowIndex,
+        action.personId || null, action.personName || null, action.from, action.to, action.createdAt,
+      )),
+    ]);
+    return json({ ...savedWorkout, actions }, 201);
   }
 
   const lifecycleMatch = path.match(/^\/api\/workouts\/([^/]+)\/(start|finish)$/);
   if (lifecycleMatch && request.method === 'PATCH') {
     const stored = await env.DB.prepare(`
-      SELECT id, workout_json, started_at, finished_at, duration_seconds
+      SELECT id, workout_json, saved_at, started_at, finished_at, duration_seconds
       FROM workouts WHERE id = ? AND user_id = ?
     `).bind(lifecycleMatch[1], user.id).first<StoredWorkoutRow>();
     if (!stored) return json({ error: 'Workout not found.' }, 404);
+    if (!stored.saved_at) return json({ error: 'Save the workout before starting it.' }, 400);
+
+    if (lifecycleMatch[2] === 'start') {
+      const active = await env.DB.prepare('SELECT id FROM workouts WHERE user_id = ? AND started_at IS NOT NULL AND finished_at IS NULL AND id != ? LIMIT 1')
+        .bind(user.id, lifecycleMatch[1]).first<{ id: string }>();
+      if (active) return json({ error: 'Finish the active workout before starting another.' }, 409);
+    }
 
     const parsed = JSON.parse(stored.workout_json) as Workout;
     const current: Workout = {
       ...parsed,
+      savedAt: stored.saved_at || parsed.savedAt,
       startedAt: stored.started_at || parsed.startedAt,
       finishedAt: stored.finished_at || parsed.finishedAt,
       durationSeconds: stored.duration_seconds ?? parsed.durationSeconds,
@@ -264,10 +307,10 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   if (request.method === 'GET' && path === '/api/workouts') {
     const result = await env.DB.prepare(`
-      SELECT id, workout_json, started_at, finished_at, duration_seconds
+      SELECT id, workout_json, saved_at, started_at, finished_at, duration_seconds
       FROM workouts
-      WHERE user_id = ? AND format IN ('3x3', '4x2') AND started_at IS NOT NULL
-      ORDER BY COALESCE(finished_at, started_at) DESC LIMIT 20
+      WHERE user_id = ? AND format IN ('3x3', '4x2') AND saved_at IS NOT NULL
+      ORDER BY COALESCE(finished_at, started_at, saved_at) DESC LIMIT 50
     `).bind(user.id).all<StoredWorkoutRow>();
     const actionResult = await env.DB.prepare(`
       SELECT id, workout_id AS workoutId, action_type AS type, block_number AS blockNumber,
@@ -276,8 +319,8 @@ async function route(request: Request, env: Env): Promise<Response> {
       FROM workout_actions
       WHERE user_id = ? AND workout_id IN (
         SELECT id FROM workouts
-        WHERE user_id = ? AND format IN ('3x3', '4x2') AND started_at IS NOT NULL
-        ORDER BY COALESCE(finished_at, started_at) DESC LIMIT 20
+        WHERE user_id = ? AND format IN ('3x3', '4x2') AND saved_at IS NOT NULL
+        ORDER BY COALESCE(finished_at, started_at, saved_at) DESC LIMIT 50
       )
       ORDER BY created_at ASC
     `).bind(user.id, user.id).all<ActionRow>();
@@ -294,6 +337,7 @@ async function route(request: Request, env: Env): Promise<Response> {
       const workout = JSON.parse(row.workout_json) as Workout;
       return {
         ...workout,
+        savedAt: row.saved_at || workout.savedAt,
         startedAt: row.started_at || workout.startedAt,
         finishedAt: row.finished_at || workout.finishedAt,
         durationSeconds: row.duration_seconds ?? workout.durationSeconds,

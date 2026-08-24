@@ -18,6 +18,8 @@ export interface Copy {
   delete: string;
   saving: string;
   save: string;
+  create: string;
+  workouts: string;
   workout: string;
   history: string;
   actions: string;
@@ -31,6 +33,19 @@ export interface Copy {
   generateWorkout: string;
   workoutInProgress: string;
   building: string;
+  preview: string;
+  previewChange: string;
+  saveWorkout: string;
+  savingWorkout: string;
+  backToSetup: string;
+  backToWorkouts: string;
+  ready: string;
+  active: string;
+  readyWorkouts: string;
+  activeWorkouts: string;
+  finishedWorkouts: string;
+  noSavedWorkouts: string;
+  savedOn: string;
   finished: string;
   inProgress: string;
   readyToStart: string;
@@ -51,6 +66,7 @@ export interface Copy {
   errorSelectPerson: string;
   errorFinishActive: string;
   errorCreateWorkout: string;
+  errorSaveWorkout: string;
   errorSaveChange: string;
   errorStartWorkout: string;
   errorFinishWorkout: string;
@@ -74,6 +90,8 @@ export const COPY: Record<Language, Copy> = {
     delete: 'Delete',
     saving: 'Saving…',
     save: 'Save',
+    create: 'Create',
+    workouts: 'Workouts',
     workout: 'Workout',
     history: 'History',
     actions: 'Actions',
@@ -87,6 +105,19 @@ export const COPY: Record<Language, Copy> = {
     generateWorkout: 'Generate workout',
     workoutInProgress: 'Workout in progress',
     building: 'Building…',
+    preview: 'Preview',
+    previewChange: 'Changes will be saved with this workout',
+    saveWorkout: 'Save workout',
+    savingWorkout: 'Saving workout…',
+    backToSetup: 'Back to setup',
+    backToWorkouts: 'Back to workouts',
+    ready: 'Ready',
+    active: 'Active',
+    readyWorkouts: 'Ready',
+    activeWorkouts: 'Active',
+    finishedWorkouts: 'Finished',
+    noSavedWorkouts: 'No saved workouts.',
+    savedOn: 'Saved',
     finished: 'Finished',
     inProgress: 'In progress',
     readyToStart: 'Ready to start',
@@ -107,6 +138,7 @@ export const COPY: Record<Language, Copy> = {
     errorSelectPerson: 'Select at least one person.',
     errorFinishActive: 'Finish the active workout before generating another.',
     errorCreateWorkout: 'Could not create the workout.',
+    errorSaveWorkout: 'Could not save the workout.',
     errorSaveChange: 'Could not save the change.',
     errorStartWorkout: 'Could not start the workout.',
     errorFinishWorkout: 'Could not finish the workout.',
@@ -128,6 +160,8 @@ export const COPY: Record<Language, Copy> = {
     delete: 'Löschen',
     saving: 'Speichert…',
     save: 'Speichern',
+    create: 'Erstellen',
+    workouts: 'Workouts',
     workout: 'Workout',
     history: 'Verlauf',
     actions: 'Änderungen',
@@ -141,6 +175,19 @@ export const COPY: Record<Language, Copy> = {
     generateWorkout: 'Workout erstellen',
     workoutInProgress: 'Workout läuft',
     building: 'Erstellt…',
+    preview: 'Vorschau',
+    previewChange: 'Änderungen werden mit diesem Workout gespeichert',
+    saveWorkout: 'Workout speichern',
+    savingWorkout: 'Workout wird gespeichert…',
+    backToSetup: 'Zurück zur Auswahl',
+    backToWorkouts: 'Zurück zu Workouts',
+    ready: 'Bereit',
+    active: 'Aktiv',
+    readyWorkouts: 'Bereit',
+    activeWorkouts: 'Aktiv',
+    finishedWorkouts: 'Beendet',
+    noSavedWorkouts: 'Keine gespeicherten Workouts.',
+    savedOn: 'Gespeichert',
     finished: 'Beendet',
     inProgress: 'Läuft',
     readyToStart: 'Startbereit',
@@ -161,6 +208,7 @@ export const COPY: Record<Language, Copy> = {
     errorSelectPerson: 'Mindestens eine Person auswählen.',
     errorFinishActive: 'Aktives Workout zuerst beenden.',
     errorCreateWorkout: 'Workout konnte nicht erstellt werden.',
+    errorSaveWorkout: 'Workout konnte nicht gespeichert werden.',
     errorSaveChange: 'Änderung konnte nicht gespeichert werden.',
     errorStartWorkout: 'Workout konnte nicht gestartet werden.',
     errorFinishWorkout: 'Workout konnte nicht beendet werden.',

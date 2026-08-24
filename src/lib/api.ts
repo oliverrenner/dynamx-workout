@@ -63,13 +63,14 @@ export const api = {
     }
     await request<{ ok: true }>(`/api/profiles/${id}`, { method: 'DELETE' });
   },
-  async saveWorkout(workout: Workout): Promise<void> {
+  async saveWorkout(workout: Workout): Promise<Workout> {
     if (import.meta.env.DEV) {
       const workouts = JSON.parse(localStorage.getItem(LOCAL_WORKOUT_KEY) || '[]') as Workout[];
-      localStorage.setItem(LOCAL_WORKOUT_KEY, JSON.stringify([workout, ...workouts].slice(0, 20)));
-      return;
+      const saved = { ...workout, savedAt: new Date().toISOString() };
+      localStorage.setItem(LOCAL_WORKOUT_KEY, JSON.stringify([saved, ...workouts.filter((item) => item.id !== saved.id)].slice(0, 50)));
+      return saved;
     }
-    await request<{ ok: true }>('/api/workouts', { method: 'POST', body: JSON.stringify(workout) });
+    return request<Workout>('/api/workouts', { method: 'POST', body: JSON.stringify(workout) });
   },
   async updateWorkout(id: string, edit: WorkoutEdit): Promise<{ workout: Workout; action: WorkoutAction }> {
     if (import.meta.env.DEV) {
@@ -87,6 +88,9 @@ export const api = {
       const workouts = JSON.parse(localStorage.getItem(LOCAL_WORKOUT_KEY) || '[]') as Workout[];
       const current = workouts.find((workout) => workout.id === id);
       if (!current) throw new Error('Workout not found.');
+      if (workouts.some((workout) => workout.id !== id && workout.startedAt && !workout.finishedAt)) {
+        throw new Error('Finish the active workout before starting another.');
+      }
       const next = applyStart(current);
       localStorage.setItem(LOCAL_WORKOUT_KEY, JSON.stringify(workouts.map((workout) => workout.id === id ? next : workout)));
       return next;
@@ -105,7 +109,7 @@ export const api = {
     return request<Workout>(`/api/workouts/${id}/finish`, { method: 'PATCH' });
   },
   async workouts(): Promise<Workout[]> {
-    if (import.meta.env.DEV) return (JSON.parse(localStorage.getItem(LOCAL_WORKOUT_KEY) || '[]') as Workout[]).filter((workout) => workout.startedAt);
+    if (import.meta.env.DEV) return (JSON.parse(localStorage.getItem(LOCAL_WORKOUT_KEY) || '[]') as Workout[]).filter((workout) => workout.savedAt);
     return request<Workout[]>('/api/workouts');
   },
 };

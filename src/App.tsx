@@ -3,7 +3,8 @@ import { EQUIPMENT, type Exercise, type Movement } from './data/exercises';
 import { api } from './lib/api';
 import { availableExercises, generateWorkout } from './lib/generator';
 import { COPY, detectLanguage, localeFor, localizeActionValue, localizeEquipment, localizeExercise, localizeMovement, localizePrescription, storeLanguage, type Language } from './lib/i18n';
-import { prescriptionOptions } from './lib/workout-edit';
+import { groupWorkouts, workoutStatus } from './lib/workout-collection';
+import { applyWorkoutEdit, prescriptionOptions } from './lib/workout-edit';
 import type { EquipmentId, Level, Profile, SessionPayload, Workout, WorkoutAction, WorkoutEdit, WorkoutFormat } from './types';
 
 const FORMATS: { value: WorkoutFormat; label: string }[] = [
@@ -11,7 +12,7 @@ const FORMATS: { value: WorkoutFormat; label: string }[] = [
   { value: '4x2', label: '4 × 2' },
 ];
 
-type AppView = 'workout' | 'history' | 'actions';
+type AppView = 'create' | 'workouts' | 'actions';
 
 const MOVEMENTS: { id: Movement; label: string }[] = [
   { id: 'squat', label: 'Squat' },
@@ -114,17 +115,21 @@ function ProfileEditor({ profile, language, onClose, onSave, onDelete }: Profile
 interface WorkoutSheetProps {
   workout: Workout;
   language: Language;
-  onAgain: () => void;
+  mode: 'preview' | 'saved';
+  onBack: () => void;
+  onAgain?: () => void;
+  onSave?: () => Promise<void>;
   onEdit: (edit: WorkoutEdit) => Promise<void>;
-  onStart: () => Promise<void>;
-  onFinish: () => Promise<void>;
+  onStart?: () => Promise<void>;
+  onFinish?: () => Promise<void>;
   editStatus: 'idle' | 'saving' | 'saved';
   editError: string;
   lifecycleBusy: boolean;
   lifecycleError: string;
+  activeElsewhere?: boolean;
 }
 
-function WorkoutSheet({ workout, language, onAgain, onEdit, onStart, onFinish, editStatus, editError, lifecycleBusy, lifecycleError }: WorkoutSheetProps) {
+function WorkoutSheet({ workout, language, mode, onBack, onAgain, onSave, onEdit, onStart, onFinish, editStatus, editError, lifecycleBusy, lifecycleError, activeElsewhere }: WorkoutSheetProps) {
   const copy = COPY[language];
   const exercises = availableExercises(workout.equipment);
   const running = Boolean(workout.startedAt && !workout.finishedAt);
@@ -142,12 +147,16 @@ function WorkoutSheet({ workout, language, onAgain, onEdit, onStart, onFinish, e
     : workout.startedAt
       ? Math.max(0, Math.floor((now - Date.parse(workout.startedAt)) / 1000))
       : 0;
-  const stateLabel = workout.finishedAt
+  const stateLabel = mode === 'preview'
+    ? copy.preview
+    : workout.finishedAt
     ? `${copy.finished} · ${formatDuration(elapsed)}`
     : running
       ? `${copy.inProgress} · ${formatDuration(elapsed)}`
       : copy.readyToStart;
-  const editMessage = workout.finishedAt
+  const editMessage = mode === 'preview'
+    ? editError || copy.previewChange
+    : workout.finishedAt
     ? copy.finishedLocked
     : editError || (editStatus === 'saving' ? copy.savingChange : editStatus === 'saved' ? copy.saved : copy.editCells);
 
@@ -160,10 +169,12 @@ function WorkoutSheet({ workout, language, onAgain, onEdit, onStart, onFinish, e
           <p className={`edit-hint ${editStatus}`}>{editMessage}</p>
         </div>
         <div className="sheet-actions">
+          <button className="quiet-button" onClick={onBack}>{mode === 'preview' ? copy.backToSetup : copy.backToWorkouts}</button>
           <button className="quiet-button" onClick={() => window.print()}>{copy.print}</button>
-          {!running && <button className="quiet-button" onClick={onAgain}>{copy.regenerate}</button>}
-          {!workout.startedAt && <button className="workout-button" disabled={lifecycleBusy} onClick={() => void onStart()}>{lifecycleBusy ? copy.starting : copy.startWorkout}</button>}
-          {running && <button className="workout-button finish" disabled={lifecycleBusy} onClick={() => void onFinish()}>{lifecycleBusy ? copy.finishing : copy.finishWorkout}</button>}
+          {mode === 'preview' && onAgain && <button className="quiet-button" onClick={onAgain}>{copy.regenerate}</button>}
+          {mode === 'preview' && onSave && <button className="workout-button" disabled={lifecycleBusy} onClick={() => void onSave()}>{lifecycleBusy ? copy.savingWorkout : copy.saveWorkout}</button>}
+          {mode === 'saved' && !workout.startedAt && onStart && <button className="workout-button" disabled={lifecycleBusy || activeElsewhere} onClick={() => void onStart()}>{activeElsewhere ? copy.workoutInProgress : lifecycleBusy ? copy.starting : copy.startWorkout}</button>}
+          {mode === 'saved' && running && onFinish && <button className="workout-button finish" disabled={lifecycleBusy} onClick={() => void onFinish()}>{lifecycleBusy ? copy.finishing : copy.finishWorkout}</button>}
         </div>
       </div>
       {lifecycleError && <p className="lifecycle-error">{lifecycleError}</p>}
@@ -237,29 +248,46 @@ function BlockRows({ block, people, exercises, language, disabled, locked, onEdi
   );
 }
 
-interface HistoryViewProps {
-  history: Workout[];
+interface WorkoutsViewProps {
+  workouts: Workout[];
   language: Language;
   onOpen: (workout: Workout) => void;
 }
 
-function HistoryView({ history, language, onOpen }: HistoryViewProps) {
+function WorkoutsView({ workouts, language, onOpen }: WorkoutsViewProps) {
   const copy = COPY[language];
+  const groups = groupWorkouts(workouts);
+  const sections = [
+    { status: 'active' as const, label: copy.activeWorkouts, items: groups.active },
+    { status: 'ready' as const, label: copy.readyWorkouts, items: groups.ready },
+    { status: 'finished' as const, label: copy.finishedWorkouts, items: groups.finished },
+  ];
   return (
-    <section className="view-section history-view">
+    <section className="view-section workouts-view">
       <div className="view-heading">
-        <h1>{copy.history}</h1>
-        <span>{history.length}</span>
+        <h1>{copy.workouts}</h1>
+        <span>{workouts.length}</span>
       </div>
-      {history.length === 0 ? <p className="empty-state">{copy.noFinishedWorkouts}</p> : <div className="history-list">
-        {history.map((item) => (
-          <button key={item.id} onClick={() => onOpen(item)}>
-            <time dateTime={item.finishedAt || item.createdAt}>{new Intl.DateTimeFormat(localeFor(language), { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(item.finishedAt || item.createdAt))}</time>
-            <strong>{item.people.map((person) => person.name).join(' + ')}</strong>
-            <span>{item.format.replace('x', ' × ')} · {formatDuration(item.durationSeconds || 0)}</span>
-          </button>
-        ))}
-      </div>}
+      {workouts.length === 0 ? <p className="empty-state">{copy.noSavedWorkouts}</p> : sections.map((section) => section.items.length > 0 && (
+        <div className="workout-group" key={section.status}>
+          <div className="group-heading"><h2>{section.label}</h2><span>{section.items.length}</span></div>
+          <div className="workout-list">
+            {section.items.map((item) => {
+              const timestamp = item.finishedAt || item.startedAt || item.savedAt || item.createdAt;
+              const status = workoutStatus(item);
+              return (
+                <button key={item.id} onClick={() => onOpen(item)}>
+                  <span className={`status-mark ${status}`}><i />{status === 'active' ? copy.active : status === 'finished' ? copy.finished : copy.ready}</span>
+                  <strong>{item.people.map((person) => person.name).join(' + ')}</strong>
+                  <span>{item.format.replace('x', ' × ')}{item.durationSeconds ? ` · ${formatDuration(item.durationSeconds)}` : ''}</span>
+                  <time dateTime={timestamp}>{new Intl.DateTimeFormat(localeFor(language), { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(timestamp))}</time>
+                  <b aria-hidden="true">→</b>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </section>
   );
 }
@@ -296,14 +324,15 @@ function ActionsView({ workouts, language }: { workouts: Workout[]; language: La
 function App() {
   const [language, setLanguage] = useState<Language>(detectLanguage);
   const [session, setSession] = useState<SessionPayload | null | undefined>();
-  const [view, setView] = useState<AppView>('workout');
+  const [view, setView] = useState<AppView>('create');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [equipment, setEquipment] = useState<EquipmentId[]>([]);
   const [format, setFormat] = useState<WorkoutFormat>('3x3');
   const [editor, setEditor] = useState<Profile | 'new' | null>(null);
-  const [workout, setWorkout] = useState<Workout | null>(null);
-  const [history, setHistory] = useState<Workout[]>([]);
+  const [preview, setPreview] = useState<Workout | null>(null);
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [editStatus, setEditStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -322,22 +351,21 @@ function App() {
       if (payload) {
         setProfiles(payload.profiles);
         setSelected(payload.profiles.slice(0, 2).map((profile) => profile.id));
-        api.workouts().then((workouts) => {
-          setHistory(workouts.filter((item) => item.finishedAt));
-          const active = workouts.find((item) => item.startedAt && !item.finishedAt);
-          if (active) setWorkout(active);
+        api.workouts().then((savedWorkouts) => {
+          setWorkouts(savedWorkouts);
+          const active = savedWorkouts.find((item) => item.startedAt && !item.finishedAt);
+          if (active) {
+            setSelectedWorkout(active);
+            setView('workouts');
+          }
         }).catch(() => undefined);
       }
     }).catch((caught) => { setError(caught.message); setSession(null); });
   }, []);
 
   const selectedPeople = useMemo(() => profiles.filter((profile) => selected.includes(profile.id)), [profiles, selected]);
-  const visibleWorkouts = useMemo(() => {
-    const unique = new Map(history.map((item) => [item.id, item]));
-    if (workout) unique.set(workout.id, workout);
-    return [...unique.values()];
-  }, [history, workout]);
-  const actionCount = useMemo(() => visibleWorkouts.reduce((total, item) => total + (item.actions?.length || 0), 0), [visibleWorkouts]);
+  const actionCount = useMemo(() => workouts.reduce((total, item) => total + (item.actions?.length || 0), 0), [workouts]);
+  const activeWorkout = useMemo(() => workouts.find((item) => item.startedAt && !item.finishedAt), [workouts]);
 
   if (session === undefined) return <div className="loading"><BrandMark /></div>;
   if (!session) return <Login language={language} onLanguageChange={(next) => { setLanguage(next); storeLanguage(next); }} />;
@@ -364,31 +392,55 @@ function App() {
 
   const makeWorkout = async () => {
     if (!selectedPeople.length) { setError(copy.errorSelectPerson); return; }
-    if (workout?.startedAt && !workout.finishedAt) { setError(copy.errorFinishActive); return; }
     setBusy(true);
     setError('');
     try {
       const next = generateWorkout(selectedPeople, format, equipment);
-      await api.saveWorkout(next);
-      setWorkout(next);
+      setPreview(next);
       setEditStatus('idle');
       setEditError('');
       setLifecycleError('');
-      requestAnimationFrame(() => document.querySelector('.workout-sheet')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (caught) {
       setError(language === 'en' && caught instanceof Error ? caught.message : copy.errorCreateWorkout);
     } finally { setBusy(false); }
   };
 
-  const editWorkout = async (edit: WorkoutEdit) => {
-    if (!workout || editStatus === 'saving') return;
+  const editPreview = async (edit: WorkoutEdit) => {
+    if (!preview) return;
+    setEditError('');
+    try {
+      setPreview(applyWorkoutEdit(preview, edit).workout);
+    } catch (caught) {
+      setEditError(language === 'en' && caught instanceof Error ? caught.message : copy.errorSaveChange);
+    }
+  };
+
+  const savePreview = async () => {
+    if (!preview || lifecycleBusy) return;
+    setLifecycleBusy(true);
+    setLifecycleError('');
+    try {
+      const saved = await api.saveWorkout(preview);
+      setWorkouts((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+      setPreview(null);
+      setSelectedWorkout(null);
+      setView('workouts');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (caught) {
+      setLifecycleError(language === 'en' && caught instanceof Error ? caught.message : copy.errorSaveWorkout);
+    } finally { setLifecycleBusy(false); }
+  };
+
+  const editSavedWorkout = async (edit: WorkoutEdit) => {
+    if (!selectedWorkout || editStatus === 'saving') return;
     setEditStatus('saving');
     setEditError('');
     try {
-      const result = await api.updateWorkout(workout.id, edit);
-      const next = { ...result.workout, actions: [...(workout.actions || []), result.action] };
-      setWorkout(next);
-      setHistory((current) => current.map((item) => item.id === next.id ? next : item));
+      const result = await api.updateWorkout(selectedWorkout.id, edit);
+      const next = { ...result.workout, actions: [...(selectedWorkout.actions || []), result.action] };
+      setSelectedWorkout(next);
+      setWorkouts((current) => current.map((item) => item.id === next.id ? next : item));
       setEditStatus('saved');
       window.setTimeout(() => setEditStatus('idle'), 1400);
     } catch (caught) {
@@ -398,37 +450,37 @@ function App() {
   };
 
   const startCurrentWorkout = async () => {
-    if (!workout || lifecycleBusy) return;
+    if (!selectedWorkout || lifecycleBusy || (activeWorkout && activeWorkout.id !== selectedWorkout.id)) return;
     setLifecycleBusy(true);
     setLifecycleError('');
     try {
-      const next = await api.startWorkout(workout.id);
-      setWorkout({ ...next, actions: workout.actions || [] });
+      const next = { ...await api.startWorkout(selectedWorkout.id), actions: selectedWorkout.actions || [] };
+      setSelectedWorkout(next);
+      setWorkouts((current) => current.map((item) => item.id === next.id ? next : item));
     } catch (caught) {
       setLifecycleError(language === 'en' && caught instanceof Error ? caught.message : copy.errorStartWorkout);
     } finally { setLifecycleBusy(false); }
   };
 
   const finishCurrentWorkout = async () => {
-    if (!workout || lifecycleBusy) return;
+    if (!selectedWorkout || lifecycleBusy) return;
     setLifecycleBusy(true);
     setLifecycleError('');
     try {
-      const next = { ...await api.finishWorkout(workout.id), actions: workout.actions || [] };
-      setWorkout(next);
-      setHistory((current) => [next, ...current.filter((item) => item.id !== next.id)].slice(0, 20));
+      const next = { ...await api.finishWorkout(selectedWorkout.id), actions: selectedWorkout.actions || [] };
+      setSelectedWorkout(next);
+      setWorkouts((current) => [next, ...current.filter((item) => item.id !== next.id)]);
     } catch (caught) {
       setLifecycleError(language === 'en' && caught instanceof Error ? caught.message : copy.errorFinishWorkout);
     } finally { setLifecycleBusy(false); }
   };
 
   const openWorkout = (item: Workout) => {
-    setWorkout(item);
+    setSelectedWorkout(item);
     setEditStatus('idle');
     setEditError('');
     setLifecycleError('');
-    setView('workout');
-    requestAnimationFrame(() => document.querySelector('.workout-sheet')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -436,17 +488,31 @@ function App() {
       <header>
         <a className="wordmark" href="/" aria-label="Dynamx Workout"><BrandMark /><span>Workout</span></a>
         <nav className="app-nav" aria-label={copy.mainNavigation}>
-          <button className={view === 'workout' ? 'active' : ''} aria-current={view === 'workout' ? 'page' : undefined} onClick={() => setView('workout')}>{copy.workout}</button>
-          <button className={view === 'history' ? 'active' : ''} aria-current={view === 'history' ? 'page' : undefined} onClick={() => setView('history')}>{copy.history} <span>{history.length}</span></button>
+          <button className={view === 'create' ? 'active' : ''} aria-current={view === 'create' ? 'page' : undefined} onClick={() => setView('create')}>{copy.create}</button>
+          <button className={view === 'workouts' ? 'active' : ''} aria-current={view === 'workouts' ? 'page' : undefined} onClick={() => { setSelectedWorkout(null); setView('workouts'); }}>{copy.workouts} <span>{workouts.length}</span></button>
           <button className={view === 'actions' ? 'active' : ''} aria-current={view === 'actions' ? 'page' : undefined} onClick={() => setView('actions')}>{copy.actions} <span>{actionCount}</span></button>
         </nav>
         <div className="header-tools"><LanguageToggle language={language} onChange={(next) => { setLanguage(next); storeLanguage(next); }} /><div className="account"><span>{session.user.name}</span>{session.user.picture ? <img src={session.user.picture} alt="" referrerPolicy="no-referrer" /> : <span className="avatar">{session.user.name.charAt(0)}</span>}<a href="/api/auth/logout">{copy.signOut}</a></div></div>
       </header>
 
       <main>
-        {view === 'workout' && <>
+        {view === 'create' && (preview ? (
+          <WorkoutSheet
+            workout={preview}
+            language={language}
+            mode="preview"
+            onBack={() => { setPreview(null); setEditError(''); setLifecycleError(''); }}
+            onAgain={makeWorkout}
+            onSave={savePreview}
+            onEdit={editPreview}
+            editStatus="idle"
+            editError={editError}
+            lifecycleBusy={lifecycleBusy}
+            lifecycleError={lifecycleError}
+          />
+        ) : (
           <section className="builder">
-          <div className="view-heading"><h1>{copy.workout}</h1></div>
+          <div className="view-heading"><h1>{copy.create}</h1></div>
 
           <div className="setup-row">
             <div className="setup-label"><h2>{copy.people}</h2><span>{copy.selectedCount(selected.length)}</span></div>
@@ -479,14 +545,27 @@ function App() {
 
           <div className="generate-row">
             <div>{error && <p className="error">{error}</p>}<p>{selectedPeople.map((person) => person.name).join(' + ') || copy.selectPerson} · {format.replace('x', ' × ')} · {equipment.length ? equipment.map((id) => EQUIPMENT.find((item) => item.id === id)?.short).join(', ') : copy.bodyweight}</p></div>
-            <button className="generate-button" onClick={makeWorkout} disabled={busy || !selectedPeople.length || Boolean(workout?.startedAt && !workout.finishedAt)}>{workout?.startedAt && !workout.finishedAt ? copy.workoutInProgress : busy ? copy.building : copy.generateWorkout}</button>
+            <button className="generate-button" onClick={makeWorkout} disabled={busy || !selectedPeople.length}>{busy ? copy.building : copy.generateWorkout}</button>
           </div>
         </section>
-
-        {workout && <WorkoutSheet workout={workout} language={language} onAgain={makeWorkout} onEdit={editWorkout} onStart={startCurrentWorkout} onFinish={finishCurrentWorkout} editStatus={editStatus} editError={editError} lifecycleBusy={lifecycleBusy} lifecycleError={lifecycleError} />}
-        </>}
-        {view === 'history' && <HistoryView history={history} language={language} onOpen={openWorkout} />}
-        {view === 'actions' && <ActionsView workouts={visibleWorkouts} language={language} />}
+        ))}
+        {view === 'workouts' && (selectedWorkout ? (
+          <WorkoutSheet
+            workout={selectedWorkout}
+            language={language}
+            mode="saved"
+            onBack={() => { setSelectedWorkout(null); setEditError(''); setLifecycleError(''); }}
+            onEdit={editSavedWorkout}
+            onStart={startCurrentWorkout}
+            onFinish={finishCurrentWorkout}
+            editStatus={editStatus}
+            editError={editError}
+            lifecycleBusy={lifecycleBusy}
+            lifecycleError={lifecycleError}
+            activeElsewhere={Boolean(activeWorkout && activeWorkout.id !== selectedWorkout.id)}
+          />
+        ) : <WorkoutsView workouts={workouts} language={language} onOpen={openWorkout} />)}
+        {view === 'actions' && <ActionsView workouts={workouts} language={language} />}
       </main>
 
       {editor && <ProfileEditor profile={editor === 'new' ? undefined : editor} language={language} onClose={() => setEditor(null)} onSave={saveProfile} onDelete={editor === 'new' ? undefined : deleteProfile} />}

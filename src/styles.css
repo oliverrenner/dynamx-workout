@@ -83,7 +83,7 @@ header {
 .account a:hover { color: var(--ink); }
 
 main { max-width: 1180px; margin: 0 auto; padding: 0 28px 80px; }
-.builder, .view-section { padding-top: 34px; }
+.builder, .view-section, .workout-sheet { padding-top: 34px; animation: view-enter 160ms ease-out both; }
 .view-heading { min-height: 54px; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--ink); }
 .view-heading h1 { margin: 0; font-size: 28px; line-height: 1; letter-spacing: -.045em; }
 .view-heading > span { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -126,7 +126,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 0 28px 80px; }
 .generate-button:hover { background: #c9f653; }
 .generate-button:disabled { opacity: .42; cursor: not-allowed; }
 
-.workout-sheet { margin-top: 48px; scroll-margin-top: 78px; }
+.workout-sheet { margin-top: 0; scroll-margin-top: 78px; }
 .sheet-heading { margin-bottom: 14px; display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; }
 .sheet-heading h2 { margin: 0; font-size: 25px; letter-spacing: -.04em; }
 .workout-state { margin: 6px 0 0; display: flex; align-items: center; gap: 6px; color: var(--muted); font: 650 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -162,12 +162,24 @@ tbody td { font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .exercise-cell select { font-size: 12px; font-weight: 700; }
 .prescription-cell select { font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-.history-list { border-bottom: 1px solid var(--line); }
-.history-list button { width: 100%; min-height: 58px; padding: 0; display: grid; grid-template-columns: 120px 1fr auto; gap: 20px; align-items: center; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; }
-.history-list button:last-child { border-bottom: 0; }
-.history-list button:hover strong { text-decoration: underline; text-underline-offset: 3px; }
-.history-list time, .history-list span { color: var(--muted); font-size: 10px; }
-.history-list strong { font-size: 12px; }
+.workout-group { padding-top: 24px; }
+.group-heading { min-height: 32px; display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.group-heading h2 { margin: 0; font-size: 12px; letter-spacing: -.01em; }
+.group-heading span { color: var(--muted); font-size: 9px; font-variant-numeric: tabular-nums; }
+.workout-list { border-bottom: 1px solid var(--line); }
+.workout-list button { width: 100%; min-height: 58px; padding: 0; display: grid; grid-template-columns: 100px minmax(180px, 1fr) 120px 110px 18px; gap: 18px; align-items: center; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; }
+.workout-list button:last-child { border-bottom: 0; }
+.workout-list button:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.workout-list button:hover b { transform: translateX(3px); }
+.workout-list strong { font-size: 12px; }
+.workout-list button > span:not(.status-mark), .workout-list time { color: var(--muted); font-size: 10px; }
+.workout-list time { text-align: right; }
+.workout-list b { color: var(--muted); font-size: 12px; transition: transform 120ms ease; }
+.status-mark { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
+.status-mark i { width: 7px; height: 7px; border-radius: 50%; background: #aaaca4; }
+.status-mark.active { color: var(--ink); }
+.status-mark.active i { background: var(--accent); outline: 1px solid var(--ink); }
+.status-mark.finished i { background: var(--ink); }
 .action-list { margin: 0; padding: 0; list-style: none; border-bottom: 1px solid var(--line); }
 .action-list li { min-height: 62px; display: grid; grid-template-columns: 120px minmax(150px, .65fr) minmax(0, 1.35fr); gap: 20px; align-items: center; border-bottom: 1px solid var(--line); font-size: 11px; }
 .action-list li:last-child { border-bottom: 0; }
@@ -205,12 +217,17 @@ tbody td { font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .google-button svg { width: 17px; height: 17px; }
 .loading { min-height: 100vh; display: grid; place-items: center; }
 
+@keyframes view-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (max-width: 760px) {
   header { height: 92px; padding: 0 16px; grid-template-columns: 1fr auto; grid-template-rows: 46px 46px; }
   .app-nav { grid-column: 1 / -1; grid-row: 2; gap: 22px; }
   .account > span:first-child, .account a { display: none; }
   main { padding: 0 16px 60px; }
-  .builder, .view-section { padding-top: 26px; }
+  .builder, .view-section, .workout-sheet { padding-top: 26px; }
   .view-heading { min-height: 46px; }
   .view-heading h1 { font-size: 24px; }
   .setup-row { grid-template-columns: 1fr; gap: 12px; padding: 16px 0; }
@@ -221,7 +238,7 @@ tbody td { font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .equipment-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .generate-row { align-items: stretch; flex-direction: column; padding: 14px 0 18px; }
   .generate-button { width: 100%; }
-  .workout-sheet { margin-top: 38px; scroll-margin-top: 106px; }
+  .workout-sheet { scroll-margin-top: 106px; }
   .sheet-heading { align-items: flex-start; }
   .sheet-actions { flex-wrap: wrap; justify-content: flex-end; }
   table:not(.many-people) { min-width: 100%; table-layout: fixed; }
@@ -230,8 +247,10 @@ tbody td { font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .cell-select select { padding: 10px 24px 10px 9px; font-size: 10px; }
   .cell-select::after { right: 7px; }
   table.many-people { min-width: 660px; }
-  .history-list button { grid-template-columns: 78px 1fr; gap: 6px 12px; padding: 12px 0; }
-  .history-list button span { grid-column: 2; }
+  .workout-list button { grid-template-columns: 74px minmax(0, 1fr) 16px; gap: 7px 10px; padding: 12px 0; }
+  .workout-list button > span:not(.status-mark) { grid-column: 2; }
+  .workout-list time { grid-column: 1; grid-row: 2; text-align: left; }
+  .workout-list b { grid-column: 3; grid-row: 1 / span 2; }
   .action-list li { grid-template-columns: 90px 1fr; gap: 7px 12px; padding: 12px 0; }
   .action-list li > span { grid-column: 2; }
   .login-top { margin-bottom: 38px; }

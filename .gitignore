@@ -9,4 +9,5 @@ work/
 coverage/
 playwright-report/
 test-results/
+output/playwright/
 *.tsbuildinfo
