@@ -341,6 +341,7 @@ function ActionsView({ workouts, language }: { workouts: Workout[]; language: La
 
 function ExerciseCatalogue({ language }: { language: Language }) {
   const copy = COPY[language];
+  const [openInfo, setOpenInfo] = useState<string | null>(null);
   return (
     <section className="view-section catalogue-view">
       <div className="view-heading">
@@ -360,17 +361,23 @@ function ExerciseCatalogue({ language }: { language: Language }) {
           <tbody>
             {EXERCISES.map((exercise) => {
               const movement = MOVEMENTS.find((item) => item.id === exercise.movement)!;
+              const exerciseName = localizeExercise(exercise.id, exercise.name, language);
+              const infoId = `catalogue-info-${exercise.id}`;
+              const expanded = openInfo === exercise.id;
               const requiredEquipment = exercise.equipment.map((id) => {
                 const item = EQUIPMENT.find((candidate) => candidate.id === id)!;
                 return localizeEquipment(item.id, item.label, language);
               });
               return (
-                <tr key={exercise.id}>
-                  <th>{localizeExercise(exercise.id, exercise.name, language)}</th>
-                  <td><span className="catalogue-label">{copy.movement}</span>{localizeMovement(movement.id, movement.label, language)}</td>
-                  <td><span className="catalogue-label">{copy.equipment}</span>{requiredEquipment.length ? requiredEquipment.join(', ') : copy.bodyweight}</td>
-                  {LEVELS.map((level) => <td key={level}><span className="catalogue-label">{copy.levels[level]}</span>{localizePrescription(exercise.targets[level], language)}</td>)}
-                </tr>
+                <Fragment key={exercise.id}>
+                  <tr className={`catalogue-exercise-row ${expanded ? 'expanded' : ''}`}>
+                    <th><div className="catalogue-exercise-name"><span>{exerciseName}</span><button type="button" className="exercise-info-button catalogue-info-button" aria-expanded={expanded} aria-controls={infoId} aria-label={copy.exerciseInfoLabel(exerciseName, expanded)} onClick={() => setOpenInfo((current) => current === exercise.id ? null : exercise.id)}>i</button></div></th>
+                    <td><span className="catalogue-label">{copy.movement}</span>{localizeMovement(movement.id, movement.label, language)}</td>
+                    <td><span className="catalogue-label">{copy.equipment}</span>{requiredEquipment.length ? requiredEquipment.join(', ') : copy.bodyweight}</td>
+                    {LEVELS.map((level) => <td key={level}><span className="catalogue-label">{copy.levels[level]}</span>{localizePrescription(exercise.targets[level], language)}</td>)}
+                  </tr>
+                  {expanded && <tr className="catalogue-instruction-row"><td colSpan={LEVELS.length + 3}><p className="catalogue-instruction" id={infoId}>{exerciseInstruction(exercise.id, language)}</p></td></tr>}
+                </Fragment>
               );
             })}
           </tbody>
